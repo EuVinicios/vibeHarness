@@ -1,0 +1,39 @@
+name: AI rule suggestion
+description: Suggest a new guardrail rule for the AI assistant templates
+title: "[rule] "
+labels: ["rules", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest a rule to be included in the generated AI assistant files (Cursor, Claude Code, Windsurf, Copilot).
+        Good rules are **universal, enforceable, and security/quality-related** — not personal style preferences.
+  - type: textarea
+    id: rule
+    attributes:
+      label: Rule text
+      description: The rule as it should appear in the generated files.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: Why is this rule important? Link references (CVEs, incidents, community best practices).
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Security / secrets
+        - Input validation
+        - Architecture / code quality
+        - Database / migrations
+        - Privacy (LGPD/GDPR)
+        - Payments
+        - Authentication
+        - Accessibility
+    validations:
+      required: true
