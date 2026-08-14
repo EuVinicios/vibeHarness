@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { banner, writeFileSafe, detectStack, projectRoot, getProjectName } from '../utils/fs.js';
-import { loadCatalog, isCatalogStale } from '../registry/index.js';
+import { loadCatalog, isCatalogStale, catalogViolations } from '../registry/index.js';
 import { stackPlanTemplate, type StackPlanInput } from '../generators/stack-plan.js';
 
 interface PlanOptions {
@@ -42,8 +42,16 @@ async function readThreatModel(): Promise<StoredThreatModel | null> {
   const path = join(projectRoot(), '.vibe', 'threat-model.json');
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as StoredThreatModel;
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as StoredThreatModel;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('not an object');
+    }
+    return parsed;
   } catch {
+    // Fail loud: a silently-ignored threat model would generate a stack plan
+    // without auth/payments guardrails — the user must know why.
+    console.log(chalk.yellow('  ⚠  .vibe/threat-model.json is INVALID (parse error) — ignored.'));
+    console.log(chalk.yellow('     Re-run `npx @vibeharness/cli init` to regenerate it before relying on the plan.'));
     return null;
   }
 }
@@ -58,15 +66,21 @@ export async function planCommand(opts: PlanOptions): Promise<void> {
     process.exit(1);
   }
   const stale = isCatalogStale(catalog);
+  const violations = catalogViolations(catalog);
   spinner.succeed(
     `Registry loaded (last sync: ${catalog.lastSync})${stale ? chalk.yellow(' — stale, > 30 days') : ''}`
   );
+  if (violations.length > 0) {
+    console.log(chalk.yellow(`  ⚠  ${violations.length} registry entr(y|ies) violate curation criteria:`));
+    for (const v of violations.slice(0, 5)) console.log(chalk.yellow(`     - ${v}`));
+    console.log(chalk.dim('     Recommendations below may be outdated — verify before adopting.'));
+  }
 
   const stack = await detectStack();
   const projectName = await getProjectName();
   const threatModel = await readThreatModel();
   if (!threatModel) {
-    console.log(chalk.dim('  No .vibe/threat-model.json found — run `vibe-harness init` for tailored rules.'));
+    console.log(chalk.dim('  No .vibe/threat-model.json found — run `npx @vibeharness/cli init` for tailored rules.'));
   }
 
   let projectType: ProjectType;
@@ -107,7 +121,7 @@ export async function planCommand(opts: PlanOptions): Promise<void> {
       '  Next steps:',
       '    1. Review .vibe/STACK.md and confirm each primary choice',
       '    2. Copy accepted decisions into .vibe/SPEC.md (section 4)',
-      '    3. npx vibe-harness doctor --fix → install Dependabot',
+      '    3. npx @vibeharness/cli doctor --fix → install Dependabot',
     ].join('\n') + '\n'));
   }
 }

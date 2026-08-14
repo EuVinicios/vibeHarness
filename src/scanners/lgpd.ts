@@ -16,6 +16,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
+import { loadAuditIgnores } from '../utils/audit-ignore.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 import { EXCLUDED_DIRS } from './security.js';
 
@@ -117,14 +118,45 @@ const PLAINTEXT_PASSWORD_PATTERNS: [RegExp, string][] = [
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
-async function getSourceFiles(extensions: string): Promise<string[]> {
+async function getSourceFiles(
+  extensions: string,
+  extraIgnore: string[] = []
+): Promise<string[]> {
   return fg(`**/*.{${extensions}}`, {
     cwd: projectRoot(),
-    ignore: EXCLUDED_DIRS.map((d) => `**/${d}/**`),
+    ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`), ...extraIgnore],
     dot: true,
     absolute: true,
     suppressErrors: true,
   });
+}
+
+/**
+ * Route/handler markers — presence indicates an HTTP API surface.
+ * Deliberately excludes generic tokens like `req.body` / `req, res`, which
+ * appear in documentation and rule templates without any real route existing.
+ */
+const API_SURFACE_PATTERN =
+  /app\.(get|post|put|patch|delete|use)\s*\(\s*['"`/]|router\.(get|post|put|patch|delete)\s*\(\s*['"`/]|@(Controller|Get|Post|Put|Delete|Route)\b|fastify\.(get|post|put|delete)\s*\(|@(app|ctr)\.(Get|Post|Put|Delete)/;
+
+/**
+ * True when the project exposes a web surface (UI components or HTTP routes).
+ * Pure CLIs/libraries skip the web-only LGPD checks (consent banner, privacy
+ * pages, DSR endpoints) — they are web-application obligations (LGPD Art. 8/9/18
+ * apply to data controllers operating user-facing services, not dev tooling).
+ */
+async function hasWebSurface(uiFiles: string[], sourceFiles: string[]): Promise<boolean> {
+  if (uiFiles.length > 0) return true;
+  for (const file of sourceFiles) {
+    let content: string;
+    try {
+      content = await readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    if (API_SURFACE_PATTERN.test(content)) return true;
+  }
+  return false;
 }
 
 async function searchInFiles(
@@ -163,10 +195,20 @@ async function searchInFiles(
 export async function scanLGPD(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
 
-  const sourceFiles = await getSourceFiles('js,ts,jsx,tsx,py');
-  const uiFiles = await getSourceFiles('jsx,tsx,html,svelte,vue');
-  const allFiles = await getSourceFiles('js,ts,jsx,tsx,py,html,svelte,vue');
+  const auditIgnores = await loadAuditIgnores();
+  const sourceFiles = await getSourceFiles('js,ts,jsx,tsx,py', auditIgnores);
+  const uiFiles = await getSourceFiles('jsx,tsx,html,svelte,vue', auditIgnores);
+  const allFiles = await getSourceFiles('js,ts,jsx,tsx,py,html,svelte,vue', auditIgnores);
   const root = projectRoot();
+  const isWebApp = await hasWebSurface(uiFiles, sourceFiles);
+  if (!isWebApp) {
+    findings.push({
+      severity: 'info',
+      category: 'lgpd-scope',
+      message: 'No web surface detected (no UI components or HTTP routes) — web-only LGPD checks skipped',
+      fix: 'Not applicable to CLI/library projects. If this project grows a web UI or API, the consent, privacy-page and DSR checks activate automatically.',
+    });
+  }
 
   /* 1. PII in logs */
   const piiFindings = await searchInFiles(
@@ -201,9 +243,10 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     });
   }
 
-  /* 3. Privacy & terms pages */
+  /* 3. Privacy & terms pages (web apps only) */
   let hasPrivacyPage = false;
   let hasTermsPage = false;
+  if (isWebApp) {
   for (const file of allFiles) {
     let content: string;
     try {
@@ -246,8 +289,10 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
       fix: 'Create a Terms of Use page accessible at /termos-de-uso (or /terms).',
     });
   }
+  }
 
-  /* 4. DSR endpoints */
+  /* 4. DSR endpoints (web apps only) */
+  if (isWebApp) {
   let hasDeletion = false;
   let hasExport = false;
   for (const file of sourceFiles) {
@@ -276,11 +321,12 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
       fix: 'Implement a GET /api/user/export endpoint that returns all stored data for the user in a machine-readable format (JSON/CSV). This is the "portabilidade de dados" right under LGPD Art. 18, V.',
     });
   }
+  }
 
   /* 5. Row-Level Security */
   const sqlFiles = await fg('**/*.{sql,ts,js,py}', {
     cwd: root,
-    ignore: EXCLUDED_DIRS.map((d) => `**/${d}/**`),
+    ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`), ...auditIgnores],
     absolute: true,
     suppressErrors: true,
   });

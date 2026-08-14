@@ -50,7 +50,7 @@ ${listOrPlaceholder(input.outOfScope, 'Explicitly list what the MVP will NOT do'
 
 ## 7. Non-Functional Requirements
 
-- **Security:** no known High/Critical vulnerabilities at release (\`vibe-harness audit\`).
+- **Security:** no known High/Critical vulnerabilities at release (\`npx @vibeharness/cli audit\`).
 - **Privacy:** LGPD/GDPR compliance per \`.vibe/LGPD_POLICY.md\` (if PII is processed).
 - **Performance:** p95 response time ≤ 500 ms on critical API routes.
 - **Accessibility:** WCAG 2.1 AA for all interactive UI.
@@ -64,8 +64,8 @@ ${listOrPlaceholder(input.outOfScope, 'Explicitly list what the MVP will NOT do'
 A feature is "done" when:
 1. All acceptance criteria are met.
 2. Unit and integration tests pass.
-3. \`vibe-harness audit\` score ≥ 70.
+3. \`npx @vibeharness/cli audit\` score ≥ 70.
 4. Code review approved.
-5. No open security findings from \`vibe-harness audit\`.
+5. No open security findings from \`npx @vibeharness/cli audit\`.
 `;
 }

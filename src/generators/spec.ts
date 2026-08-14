@@ -43,9 +43,9 @@ export function specTemplate(projectName: string, stack: string[]): string {
 A feature is "done" when:
 1. All acceptance criteria are met.
 2. Unit and integration tests pass.
-3. \`vibe-harness audit\` score ≥ 70.
+3. \`npx @vibeharness/cli audit\` score ≥ 70.
 4. Code review approved.
-5. No open security findings from \`vibe-harness audit\`.
+5. No open security findings from \`npx @vibeharness/cli audit\`.
 `;
 }
 

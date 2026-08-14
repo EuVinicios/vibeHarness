@@ -1,0 +1,20 @@
+# .vibe/auditignore — suppresses KNOWN false positives in the audit.
+# Gitignore-style globs, one per line. Use sparingly and justify every entry:
+# an ignored file is a blind spot for the secret/LGPD scanners.
+#
+# --- VibeHarness self-scan exclusions -------------------------------------
+# Test files contain INTENTIONAL fake-secret fixtures (PEM blocks, AWS keys,
+# CORS/JWT snippets, PII strings, MD5 calls) used to verify the scanners.
+tests/packager.test.ts
+tests/security.test.ts
+tests/lgpd.test.ts
+# The LGPD scanner's own pattern definitions match themselves when read
+# as file content (md5/INSERT-password regex sources).
+src/scanners/lgpd.ts
+# The infra scanner's fix text embeds a literal route example
+# (app.get("/healthz")) that trips the web-surface detection.
+src/scanners/infra.ts
+# CLI output lines that mention "secret(s)" trip the PII-in-logs heuristic
+# (they print UI text, not user data).
+src/commands/doctor.ts
+src/commands/init.ts

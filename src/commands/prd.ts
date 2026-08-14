@@ -83,8 +83,8 @@ export async function prdCommand(opts: PrdOptions): Promise<void> {
       '',
       '  Next steps:',
       '    1. Fill the placeholder sections in .vibe/PRD.md',
-      '    2. npx vibe-harness plan   → curated stack recommendation',
-      '    3. npx vibe-harness pack   → sanitised context for your AI assistant',
+      '    2. npx @vibeharness/cli plan   → curated stack recommendation',
+      '    3. npx @vibeharness/cli pack   → sanitised context for your AI assistant',
     ].join('\n') + '\n'));
   }
 }

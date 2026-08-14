@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { banner, projectRoot, writeFileSafe } from '../utils/fs.js';
 import { dependabotTemplate } from '../generators/dependabot.js';
 import { NODE_EOL, nodeEolStatus } from '../utils/node-eol.js';
-import { checkSecurityTooling } from '../utils/tooling.js';
+import { checkSecurityTooling, commandExists } from '../utils/tooling.js';
 
 const execAsync = promisify(exec);
 
@@ -20,6 +20,76 @@ interface OutdatedEntry {
   latest?: string;
   wanted?: string;
   type?: string;
+}
+
+/** Parse owner/repo from an origin remote URL (https or ssh). */
+function parseOrigin(url: string): { owner: string; repo: string } | null {
+  const match = url.match(/github\.com[/:]([^/]+)\/([^/.#?]+)(?:\.git)?/i);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+/**
+ * Best-effort platform security posture via the GitHub CLI (gh).
+ * Advisory only — never fails the doctor. Requires gh installed + a GitHub
+ * origin remote; private checks need appropriate repo permissions.
+ */
+async function checkGithubPosture(): Promise<void> {
+  console.log(chalk.bold('  GitHub platform security (via gh CLI):'));
+
+  if (!(await commandExists('gh'))) {
+    console.log(chalk.dim('    ·  gh CLI not found — install it for secret-scanning & branch-protection checks.'));
+    console.log(chalk.dim('       https://cli.github.com/'));
+    return;
+  }
+
+  let origin: { owner: string; repo: string } | null = null;
+  try {
+    const { stdout } = await execAsync('git remote get-url origin', { cwd: projectRoot() });
+    origin = parseOrigin(stdout.trim());
+  } catch { /* no git remote */ }
+  if (!origin) {
+    console.log(chalk.dim('    ·  No GitHub origin remote — platform checks skipped.'));
+    return;
+  }
+
+  const slug = `${origin.owner}/${origin.repo}`;
+  const api = `repos/${slug}`;
+
+  // Secret scanning + push protection
+  try {
+    const { stdout } = await execAsync(`gh api ${api} --jq '{secret_scanning: .security_and_analysis.secret_scanning.status, push_protection: .security_and_analysis.secret_scanning_push_protection.status}'`, { cwd: projectRoot() });
+    const analysis = JSON.parse(stdout) as { secret_scanning?: string; push_protection?: string };
+    if (analysis.secret_scanning === 'enabled') {
+      console.log(chalk.green(`    ✔  Secret scanning enabled (${slug}).`));
+    } else {
+      console.log(chalk.yellow(`    ⚠  Secret scanning NOT enabled (${slug}) — enable it in Settings → Code security.`));
+    }
+    if (analysis.push_protection === 'enabled') {
+      console.log(chalk.green('    ✔  Secret scanning push protection enabled.'));
+    } else {
+      console.log(chalk.yellow('    ⚠  Push protection for secrets off — blocks new secrets at commit time.'));
+    }
+  } catch {
+    console.log(chalk.dim(`    ·  Could not read security settings for ${slug} (needs repo admin visibility).`));
+  }
+
+  // Branch protection on default branch
+  try {
+    const { stdout: repoInfo } = await execAsync(`gh api ${api} --jq .default_branch`, { cwd: projectRoot() });
+    const branch = repoInfo.trim() || 'main';
+    const { stdout: branchInfo } = await execAsync(
+      `gh api ${api}/branches/${branch} --jq .protected`,
+      { cwd: projectRoot() }
+    );
+    if (branchInfo.trim() === 'true') {
+      console.log(chalk.green(`    ✔  Branch protection enabled on '${branch}'.`));
+    } else {
+      console.log(chalk.yellow(`    ⚠  Branch '${branch}' is NOT protected — require PRs + status checks before merge.`));
+    }
+  } catch {
+    console.log(chalk.dim('    ·  Could not read branch protection (needs read access / admin for private repos).'));
+  }
 }
 
 async function getOutdated(): Promise<Record<string, OutdatedEntry>> {
@@ -109,10 +179,14 @@ export async function doctorCommand(opts: DoctorOptions): Promise<void> {
     console.log(chalk.green('  ✔  Dependabot config generated (.github/dependabot.yml).'));
   } else {
     issues++;
-    console.log(chalk.yellow('  ⚠  No Dependabot config. Run `vibe-harness doctor --fix` to generate one.'));
+    console.log(chalk.yellow('  ⚠  No Dependabot config. Run `npx @vibeharness/cli doctor --fix` to generate one.'));
   }
 
-  // 5. Security tooling (advisory — not counted as an issue)
+  // 5. GitHub platform posture (advisory — gh CLI, best-effort)
+  console.log('');
+  await checkGithubPosture();
+
+  // 6. Security tooling (advisory — not counted as an issue)
   const tooling = await checkSecurityTooling();
   console.log('');
   console.log(chalk.bold('  Security tooling (recommended):'));

@@ -1,6 +1,6 @@
 {
-  "name": "vibe-harness",
-  "version": "0.3.0",
+  "name": "@vibeharness/cli",
+  "version": "0.4.0",
   "description": "Production harness for vibecoding — PRD, spec, curated stack recommendations, AI rules, context packing and audits in a single CLI",
   "type": "module",
   "bin": {
@@ -31,6 +31,9 @@
   ],
   "author": "VibeHarness Contributors",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "chalk": "^5.3.0",
     "commander": "^12.1.0",

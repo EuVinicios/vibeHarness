@@ -8,6 +8,7 @@ import { specTemplate, constitutionTemplate } from '../generators/spec.js';
 import { masterRulesTemplate, cursorRulesTemplate, claudeMdTemplate, windsurfRulesTemplate, copilotInstructionsTemplate } from '../generators/rules.js';
 import { lgpdPolicyTemplate } from '../generators/lgpd-policy.js';
 import { skillMdTemplate, slashCommandTemplate, agentsMdTemplate, type SlashCommandName } from '../generators/skill.js';
+import { securityWorkflowTemplate } from '../generators/security-workflow.js';
 
 interface InitOptions {
   yes?: boolean;
@@ -67,19 +68,35 @@ async function installPreCommitHook(): Promise<void> {
 
   const vibeHarnessHookSnippet = `
 # --- vibe-harness secret scanner ---
-VH_PATTERNS="sk_live_|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY"
-VH_STAGED=$(git diff --cached --name-only 2>/dev/null)
-for VH_FILE in $VH_STAGED; do
-  if [ -f "$VH_FILE" ]; then
-    if grep -Eq "$VH_PATTERNS" "$VH_FILE" 2>/dev/null; then
-      echo ""
-      echo "🚨 vibe-harness: Potential secret detected in: $VH_FILE"
-      echo "   Commit blocked. Move secrets to environment variables."
-      echo ""
-      exit 1
-    fi
+if command -v gitleaks >/dev/null 2>&1; then
+  # gitleaks available — full 150+ rule detection set
+  if ! gitleaks protect --staged --redact -v; then
+    echo ""
+    echo "🚨 vibe-harness: gitleaks detected secrets in staged files."
+    echo "   Commit blocked. Move secrets to environment variables."
+    exit 1
   fi
-done
+else
+  # Fallback: grep with the most critical patterns.
+  # Reads staged files from a temp file so the loop runs in THIS shell
+  # (pipeline subshells cannot abort the hook) and filenames with spaces work.
+  VH_PATTERNS="sk_live_|sk-ant-|sk-proj_|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[0-9A-Za-z_-]{20,}|xox[abprs]-|AIza[0-9A-Za-z_-]{35}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY"
+  VH_TMP="\$(mktemp)"
+  git diff --cached --name-only > "\$VH_TMP" 2>/dev/null
+  VH_BLOCKED=0
+  while IFS= read -r VH_FILE; do
+    [ -n "\$VH_FILE" ] || continue
+    if [ -f "\$VH_FILE" ] && grep -Eq "\$VH_PATTERNS" "\$VH_FILE" 2>/dev/null; then
+      echo ""
+      echo "🚨 vibe-harness: Potential secret detected in: \$VH_FILE"
+      echo "   Commit blocked. Move secrets to environment variables."
+      echo "   (Install gitleaks for full coverage: https://github.com/gitleaks/gitleaks)"
+      VH_BLOCKED=1
+    fi
+  done < "\$VH_TMP"
+  rm -f "\$VH_TMP"
+  [ "\$VH_BLOCKED" -eq 1 ] && exit 1
+fi
 # --- end vibe-harness ---
 `;
 
@@ -189,6 +206,13 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   }
   await writeFileSafe(join(root, 'AGENTS.md'), agentsMdTemplate(projectName, stack));
 
+  // Security CI workflow for the user's project (gitleaks + npm audit + vibe audit)
+  console.log('\n' + chalk.bold('🔒  Installing security CI workflow…\n'));
+  await writeFileSafe(
+    join(root, '.github', 'workflows', 'security.yml'),
+    securityWorkflowTemplate(projectName)
+  );
+
   // .gitignore
   const gitignorePath = join(root, '.gitignore');
   const existing = existsSync(gitignorePath)
@@ -217,12 +241,13 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     '    .cursorrules / CLAUDE.md / etc.    ← AI assistant rules',
     '    .claude/skills + /commands         ← Claude Code skill & slash commands',
     '    AGENTS.md                          ← guidance for opencode/Codex agents',
-    '    .git/hooks/pre-commit              ← secret blocker hook',
+    '    .github/workflows/security.yml     ← gitleaks + CVE audit CI gate',
+    '    .git/hooks/pre-commit              ← secret blocker hook (gitleaks-aware)',
     '',
     '  Next steps:',
-    '    npx vibe-harness prd    → write the product requirements',
-    '    npx vibe-harness plan   → curated stack recommendation',
-    '    npx vibe-harness pack   → build sanitised context for AI',
-    '    npx vibe-harness audit  → run production readiness check',
+    '    npx @vibeharness/cli prd    → write the product requirements',
+    '    npx @vibeharness/cli plan   → curated stack recommendation',
+    '    npx @vibeharness/cli pack   → build sanitised context for AI',
+    '    npx @vibeharness/cli audit  → run production readiness check',
   ].join('\n') + '\n'));
 }

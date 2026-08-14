@@ -1,18 +1,23 @@
-name: CI
+name: Release (npm)
 
+# Publishes @vibeharness/cli with provenance attestations (npm OIDC).
+# Trigger: push a tag like `v0.4.0`. Requires NPM_TOKEN secret with
+# publish rights for the @vibeharness scope.
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: read
+  id-token: write # required for npm provenance
 
 jobs:
-  test:
-    name: test
+  publish:
+    name: 🚀 Build, test & publish
     runs-on: ubuntu-latest
+    environment: npm
+
     steps:
       - name: Checkout
         # actions/checkout@v4.4.0
@@ -24,6 +29,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -33,3 +39,8 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Publish with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

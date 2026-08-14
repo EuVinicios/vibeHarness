@@ -1,5 +1,5 @@
 /**
- * LGPD_POLICY.md template — generated during `vibe-harness init`
+ * LGPD_POLICY.md template — generated during `npx @vibeharness/cli init`
  * Provides a practical LGPD compliance checklist adapted to the project.
  */
 export function lgpdPolicyTemplate(options: {
@@ -113,6 +113,6 @@ ${hasPayments ? '| Stripe / Pagar.me | Payments | USA / Brazil | ✅ |\n' : ''}
 
 ---
 
-*Re-run \`vibe-harness init\` to regenerate this checklist after updating your threat model.*
+*Re-run \`npx @vibeharness/cli init\` to regenerate this checklist after updating your threat model.*
 `;
 }
