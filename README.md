@@ -10,9 +10,12 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 
 | Phase | Command | What it does |
 |-------|---------|--------------|
-| 🟢 Before coding | `vibe-harness init` | Generates spec, LGPD policy, AI rules, installs pre-commit hook |
+| 🟢 Before coding | `vibe-harness prd` | Generates the Product Requirements Document (`.vibe/PRD.md`) |
+| 🟢 Before coding | `vibe-harness init` | Generates spec, LGPD policy, AI rules, agent skill, installs pre-commit hook |
+| 🟢 Before coding | `vibe-harness plan` | Curated stack recommendation from the community registry (`.vibe/STACK.md`) |
 | 🟡 During coding | `vibe-harness pack` | Sanitises context for your AI assistant (removes secrets) |
 | 🔴 After coding | `vibe-harness audit` | Runs production-readiness audit with a 0–100 scorecard |
+| 🔁 Maintenance | `vibe-harness doctor` | EOL runtimes, outdated deps, lockfile & Dependabot checks |
 
 ---
 
@@ -22,11 +25,38 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 # One-time setup in your project
 npx vibe-harness init
 
+# Write the product requirements
+npx vibe-harness prd
+
+# Get a curated stack recommendation (frontend, backend, DB, auth, MCPs…)
+npx vibe-harness plan
+
 # Before prompting your AI — build a clean context file
 npx vibe-harness pack
 
 # Before shipping — run the full audit
 npx vibe-harness audit --report
+
+# Keep the project fresh — dependency & runtime maintenance
+npx vibe-harness doctor --fix
+```
+
+---
+
+## 🟢 Phase 1 — `vibe-harness prd`
+
+Generates `.vibe/PRD.md` — the product source of truth your AI agent reads before coding:
+
+- Problem statement and target personas
+- User stories table (priority/status)
+- Core MVP features, success metrics, explicit out-of-scope
+- Non-functional requirements (security, LGPD/GDPR, performance, WCAG)
+- Definition of Done tied to the `audit` score
+
+```bash
+vibe-harness prd           # Interactive questionnaire
+vibe-harness prd --yes     # Placeholder PRD to fill later
+vibe-harness prd --force   # Overwrite existing PRD.md
 ```
 
 ---
@@ -47,6 +77,9 @@ Interactive setup that generates everything your project needs:
 CLAUDE.md                            ← Claude Code instructions
 .windsurfrules                       ← Windsurf rules
 .github/copilot-instructions.md      ← GitHub Copilot instructions
+.claude/skills/vibeharness/SKILL.md  ← Claude Code skill (invokes this CLI)
+.claude/commands/*.md                ← Slash commands: /prd /plan /pack /audit /doctor
+AGENTS.md                            ← Guidance for opencode / Codex agents
 .git/hooks/pre-commit                ← Blocks commits containing API keys
 ```
 
@@ -62,6 +95,36 @@ AI rules enforce:
 vibe-harness init          # Interactive (recommended)
 vibe-harness init --yes    # Non-interactive, safe defaults
 ```
+
+### 🤖 CLI + Skill: how it works
+
+VibeHarness is a **CLI first**: the commands work anywhere (terminal, CI, any AI tool).
+`init` additionally installs a **skill layer** so AI agents can drive the CLI natively:
+
+- **Claude Code** gets a skill (`.claude/skills/vibeharness/SKILL.md`) and slash commands (`/prd`, `/plan`, `/pack`, `/audit`, `/doctor`).
+- **opencode / Codex / friends** read `AGENTS.md`.
+- The skill **invokes the CLI** — zero duplicated logic, one source of truth.
+
+---
+
+## 🟢 Phase 1 — `vibe-harness plan`
+
+Answers the question every vibecoder faces: **"which stack should I use?"**
+
+`plan` reads the curated community registry (`registry/catalog.json` — top open-source repos by stars, license-checked) plus your threat model, and generates `.vibe/STACK.md` with primary + alternative recommendations for:
+
+- Frontend, Backend, Database, Validation
+- Authentication & Payments (when your threat model declares them)
+- Testing, Deployment, MCP servers, AI dev tools
+- Security tooling and dependency maintenance (Dependabot/Renovate)
+
+```bash
+vibe-harness plan                          # Interactive project-type selection
+vibe-harness plan --type saas              # fullstack-web | api | landing | saas
+vibe-harness plan --yes --force            # Non-interactive, overwrite
+```
+
+The registry is synced weekly from the GitHub API (stars, license, activity) — see [registry](#-curated-community-registry).
 
 ---
 
@@ -113,6 +176,22 @@ Each finding includes an **AI Fix Prompt** you can paste directly into Cursor, C
 
 ---
 
+## 🔁 Maintenance — `vibe-harness doctor`
+
+Keeps the project from rotting:
+
+- **Runtime freshness** — flags EOL Node.js versions (with upgrade guidance)
+- **Reproducibility** — lockfile presence check
+- **Dependency drift** — `npm outdated` summary, major bumps highlighted
+- **Automation** — generates `.github/dependabot.yml` with `--fix`
+
+```bash
+vibe-harness doctor          # Report only
+vibe-harness doctor --fix    # + generate Dependabot config
+```
+
+---
+
 ## 🇧🇷 LGPD Brasil Compliance Module
 
 The dedicated LGPD scanner checks:
@@ -123,6 +202,18 @@ The dedicated LGPD scanner checks:
 4. **DSR Endpoints** — account deletion (`DELETE /api/user`) and data export
 5. **Row-Level Security** — RLS policies for Supabase / PostgreSQL
 6. **Secure Password Hashing** — blocks MD5/SHA1, enforces bcrypt/Argon2
+
+---
+
+## 📚 Curated Community Registry
+
+`registry/catalog.json` is a curated catalog of the best open-source tools per category (frontend, backend, DB, auth, payments, validation, testing, deploy, MCP, AI tools, security, maintenance), ranked by community adoption (stars) and filtered by:
+
+- **License** — OSI-approved only by default (AGPL/LGPL entries are flagged as CLI-only)
+- **Activity** — recent push required
+- **Minimum adoption** — star threshold
+
+A weekly GitHub Action (`.github/workflows/registry-sync.yml`) refreshes stars/licenses/activity from the GitHub API and **opens a PR automatically** when data changes. `vibe-harness plan` uses the local snapshot (no network at runtime) and warns when it is older than 30 days.
 
 ---
 
@@ -141,9 +232,12 @@ VibeHarness ships with `.github/workflows/vibe-gate.yml` that:
 src/
 ├── cli.ts                    ← CLI entry point (commander)
 ├── commands/
-│   ├── init.ts               ← Phase 1: spec, LGPD policy, AI rules, pre-commit hook
+│   ├── prd.ts                ← Phase 1: PRD generator command
+│   ├── init.ts               ← Phase 1: spec, LGPD policy, AI rules, skill, pre-commit hook
+│   ├── plan.ts               ← Phase 1: curated stack recommendation
 │   ├── pack.ts               ← Phase 2: context packager command
 │   ├── audit.ts              ← Phase 3: TUI scorecard + report
+│   ├── doctor.ts             ← Maintenance: EOL/outdated/Dependabot
 │   └── rules.ts              ← Standalone AI rules generator
 ├── core/
 │   ├── orchestrator.ts       ← Runs all scanners, calculates aggregate score
@@ -156,19 +250,32 @@ src/
 │   ├── infra.ts              ← Health endpoints, rate limiting, CI
 │   └── accessibility.ts      ← WCAG 2.1 heuristic checks
 ├── generators/
-│   ├── rules.ts              ← Master AI rules template
+│   ├── prd.ts                ← PRD.md template
 │   ├── spec.ts               ← SPEC.md & CONSTITUTION.md templates
+│   ├── stack-plan.ts         ← STACK.md recommendation renderer
+│   ├── skill.ts              ← SKILL.md, slash commands, AGENTS.md templates
+│   ├── dependabot.ts         ← dependabot.yml template
+│   ├── rules.ts              ← Master AI rules template
 │   └── lgpd-policy.ts        ← LGPD_POLICY.md template
+├── registry/
+│   └── index.ts              ← Catalog loader, staleness & license helpers
 ├── packager/
 │   └── index.ts              ← Context packager engine (Repomix-inspired)
 ├── ui/
 │   ├── tui.ts                ← Terminal scorecard rendering
 │   └── report.ts             ← AUDIT_REPORT.md generator with AI fix prompts
 └── utils/
-    └── fs.ts                 ← File helpers, stack detection
+    ├── fs.ts                 ← File helpers, stack detection
+    └── node-eol.ts           ← Node.js EOL table
+
+registry/
+└── catalog.json              ← Curated tool catalog (auto-synced weekly)
 
 tests/
 ├── templates.test.ts         ← Generator template tests
+├── prd.test.ts               ← PRD template tests
+├── plan.test.ts              ← Registry & stack plan tests
+├── doctor.test.ts            ← Node EOL & Dependabot tests
 ├── audit.test.ts             ← Core audit engine tests
 ├── lgpd.test.ts              ← LGPD scanner tests
 └── packager.test.ts          ← Context packager tests
@@ -181,8 +288,10 @@ tests/
 ```bash
 npm install
 npm run build    # Compile TypeScript → dist/
-npm test         # Run 23 tests across 4 suites
+npm test         # Run 40 tests across 7 suites
 ```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the contribution workflow (PR-only, protected `main`) and [SECURITY.md](./SECURITY.md) for vulnerability reporting.
 
 ---
 
