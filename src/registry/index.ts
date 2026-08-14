@@ -105,7 +105,3 @@ export function topEntries(catalog: Catalog, category: string, n = 3): CatalogEn
   const entries = catalog.categories[category] ?? [];
   return [...entries].sort((a, b) => b.stars - a.stars).slice(0, n);
 }
-
-export function categoriesOf(catalog: Catalog): string[] {
-  return Object.keys(catalog.categories);
-}

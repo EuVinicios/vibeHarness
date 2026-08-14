@@ -1,4 +1,5 @@
-# .vibe/auditignore — suppresses KNOWN false positives in the audit.
+# .vibe/auditignore — suppresses KNOWN false positives in the audit
+# scanners AND the pre-commit secret hook (v0.5.1+).
 # Gitignore-style globs, one per line. Use sparingly and justify every entry:
 # an ignored file is a blind spot for the secret/LGPD scanners.
 #
@@ -18,3 +19,11 @@ src/scanners/infra.ts
 # (they print UI text, not user data).
 src/commands/doctor.ts
 src/commands/init.ts
+# The security scanner's pattern definitions contain the secret literals
+# themselves; the packager documents the prefixes it redacts.
+src/scanners/security.ts
+src/packager/index.ts
+# Recipes: documents Stripe key prefixes in .env.example hints.
+src/core/recipes.ts
+# Docs that quote the patterns being detected (kept out of the hook's grep).
+CHANGELOG.md

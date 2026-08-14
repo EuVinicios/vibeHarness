@@ -13,6 +13,7 @@ describe('nodeEolStatus', () => {
   it('keeps supported majors as active', () => {
     expect(nodeEolStatus(22, now)).toBe('active');
     expect(nodeEolStatus(24, now)).toBe('active');
+    expect(nodeEolStatus(26, now)).toBe('active');
   });
 
   it('returns unknown for unmapped majors', () => {

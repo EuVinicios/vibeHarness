@@ -59,7 +59,7 @@ export async function auditCommand(opts: AuditOptions): Promise<void> {
   } else if (opts.report && !opts.yes) {
     // Visual report is opt-in with explicit consent — it writes a file the
     // user may want to version as project documentation.
-    let go = true;
+    let go: boolean;
     try {
       const { prompt } = await import('enquirer');
       const answer = await prompt<{ go: boolean }>({

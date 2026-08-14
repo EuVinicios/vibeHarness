@@ -261,7 +261,7 @@ export async function executeApplyPlan(plan: ApplyPlan, opts: ExecuteOptions): P
       }
     } else {
       const { prompt } = await import('enquirer');
-      let go = false;
+      let go: boolean;
       try {
         const answer = await prompt<{ go: boolean }>({
           type: 'confirm',

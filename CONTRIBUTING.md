@@ -43,16 +43,20 @@ npm test         # run the test suite
 
 ## Release Process (maintainers)
 
-> ⚠️ **npm name:** `vibe-harness` on the npm registry is currently occupied by a
-> placeholder `0.0.1` package. Before publishing, move to a scoped name
-> (e.g. `@euvinicios/vibe-harness`) or acquire the name. Update `package.json`
-> `name` accordingly; the `vibe-harness` bin/command can stay unchanged.
+> The npm package is **`@vibeharness/cli`** (scoped). The unscoped `vibe-harness`
+> name belongs to an unrelated third party — never publish under it.
 
 1. Update `CHANGELOG.md` (move Unreleased items into the new version).
-2. Bump the version in `package.json` **and** in `src/cli.ts` (`.version(...)`).
+2. Bump the version in `package.json` — the CLI reads its version from there
+   (single source of truth; do not hardcode it anywhere else).
 3. Open a PR; after CI passes and review is approved, merge.
-4. Tag the release: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. Publish: `npm publish --access public` (runs `prepublishOnly` → build automatically).
+4. Tag the merge commit and push the tag — this is what publishes:
+   `git tag vX.Y.Z <merge-commit> && git push origin vX.Y.Z`.
+5. Publishing is **automatic**: the tag push triggers `.github/workflows/release.yml`,
+   which builds, tests and publishes to npm with provenance attestations.
+   Do **not** also run `npm publish` manually — it would collide with the pipeline.
+   (This is how v0.5.0 briefly shipped without a tag: merging without tagging
+   publishes nothing. The tag is the release.)
 
 ## Code of Conduct
 

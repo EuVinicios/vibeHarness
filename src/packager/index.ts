@@ -40,6 +40,26 @@ const GENERIC_ASSIGN_PATTERNS: RegExp[] = [
   /^(\s*(?:export\s+)?(?:const|let|var)?\s*[A-Z_][A-Z0-9_]{3,}\s*=\s*)(["'])[^"']{8,}\2/,
 ];
 
+/**
+ * Values that look secret-ish but are known-safe — never redact.
+ * Guards the generic fallbacks only; curated high-precision patterns
+ * (sk_live_…, AKIA…, ghp_…) always win.
+ */
+const SAFE_VALUE_PATTERNS: RegExp[] = [
+  // git commit SHAs & content hashes — CI action pins, integrity checksums
+  /^["']?[0-9a-fA-F]{7,64}["']?$/,
+  // shell command substitution: $(mktemp), $(date …)
+  /^["']?\$\(/,
+  // regex alternation lists (secret *prefixes*, not secrets): sk_live_|sk-ant-
+  /\|/,
+  // our own redaction marker (source of the packager itself)
+  /^["']?\[REDACTED by vibe-harness\]["']?$/,
+];
+
+function isSafeValue(value: string): boolean {
+  return SAFE_VALUE_PATTERNS.some((p) => p.test(value));
+}
+
 function redactLine(line: string): string {
   // Replace the secret substring itself — works for any format the curated
   // patterns match (quoted, JSON, bare, URI-embedded), not just `= "..."`.
@@ -51,7 +71,11 @@ function redactLine(line: string): string {
   for (const pattern of GENERIC_ASSIGN_PATTERNS) {
     const match = out.match(pattern);
     if (match) {
-      out = out.replace(pattern, `$1${REDACTED}`);
+      // match[1] is always the kept prefix (identifier/assignment) — the rest is the value.
+      const value = match[0].slice(match[1].length).trim();
+      if (!isSafeValue(value)) {
+        out = out.replace(pattern, `$1${REDACTED}`);
+      }
       break;
     }
   }

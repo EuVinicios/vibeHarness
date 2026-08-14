@@ -212,11 +212,12 @@ vibe-harness audit --fail-under 80    # Exit code 1 if score < 80
 ```
 
 **False-positive control:** create a `.vibe/auditignore` file (gitignore-style
-globs) to exclude known-benign files from the pattern scanners — e.g. test
-fixtures that intentionally contain fake secrets. The LGPD scanner also skips
-web-only obligations (consent banner, privacy pages, DSR endpoints) when no web
-surface (UI components or HTTP routes) is detected — CLI/library projects are
-not flagged for missing cookie banners.
+globs) to exclude known-benign files from the pattern scanners **and the
+pre-commit secret hook** — e.g. test fixtures that intentionally contain fake
+secrets, or source files that define the detection patterns themselves. The
+LGPD scanner also skips web-only obligations (consent banner, privacy pages,
+DSR endpoints) when no web surface (UI components or HTTP routes) is detected —
+CLI/library projects are not flagged for missing cookie banners.
 
 ### AUDIT_REPORT.md
 Each finding includes an **AI Fix Prompt** you can paste directly into Cursor, Claude, or Copilot to fix the issue. A Batch AI Fix Prompt at the end covers all critical/high findings in one shot.
@@ -382,7 +383,7 @@ tests/
 ```bash
 npm install
 npm run build    # Compile TypeScript → dist/
-npm test         # Run 105 tests across 15 suites
+npm test         # Run 113 tests across 16 suites
 
 # Docs site preview (requires Python or uv):
 uvx --with mkdocs-material mkdocs serve
