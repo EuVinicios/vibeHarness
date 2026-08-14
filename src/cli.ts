@@ -5,6 +5,9 @@ import { initCommand } from './commands/init.js';
 import { packCommand } from './commands/pack.js';
 import { rulesCommand } from './commands/rules.js';
 import { auditCommand } from './commands/audit.js';
+import { prdCommand } from './commands/prd.js';
+import { planCommand } from './commands/plan.js';
+import { doctorCommand } from './commands/doctor.js';
 
 const program = new Command();
 
@@ -14,15 +17,32 @@ program
     chalk.bold.cyan('VibeHarness') +
       ' — All-in-one production harness for AI-assisted development'
   )
-  .version('0.2.0');
+  .version('0.3.0');
 
 program
   .command('init')
   .description(
-    'Phase 1 — Initialise spec, LGPD policy, AI rules, and install pre-commit hook'
+    'Phase 1 — Initialise spec, LGPD policy, AI rules, agent skill, and install pre-commit hook'
   )
   .option('--yes', 'Skip interactive prompts and use safe defaults')
   .action(initCommand);
+
+program
+  .command('prd')
+  .description('Generate the Product Requirements Document (.vibe/PRD.md)')
+  .option('--yes', 'Skip interactive prompts and generate placeholders')
+  .option('--force', 'Overwrite an existing .vibe/PRD.md')
+  .action(prdCommand);
+
+program
+  .command('plan')
+  .description(
+    'Generate a curated stack recommendation (.vibe/STACK.md) from the registry'
+  )
+  .option('--yes', 'Skip interactive prompts and use defaults')
+  .option('--force', 'Overwrite an existing .vibe/STACK.md')
+  .option('--type <type>', 'Project type: fullstack-web, api, landing, saas')
+  .action(planCommand);
 
 program
   .command('pack')
@@ -54,5 +74,13 @@ program
   .option('--report', 'Write AUDIT_REPORT.md with AI fix prompts')
   .option('--fail-under <score>', 'Exit with code 1 if score is below N', '70')
   .action(auditCommand);
+
+program
+  .command('doctor')
+  .description(
+    'Maintenance check: EOL runtimes, outdated dependencies, lockfile, Dependabot'
+  )
+  .option('--fix', 'Generate .github/dependabot.yml if missing')
+  .action(doctorCommand);
 
 program.parse();

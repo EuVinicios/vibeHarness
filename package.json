@@ -1,11 +1,15 @@
 {
   "name": "vibe-harness",
-  "version": "0.2.0",
-  "description": "All-in-one production harness for vibecoding — spec, AI rules, and audit in a single CLI",
+  "version": "0.3.0",
+  "description": "Production harness for vibecoding — PRD, spec, curated stack recommendations, AI rules, context packing and audits in a single CLI",
   "type": "module",
   "bin": {
     "vibe-harness": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "registry"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "ts-node --esm src/cli.ts",

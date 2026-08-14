@@ -7,6 +7,7 @@ import { banner, writeFileSafe, detectStack, projectRoot, getProjectName } from 
 import { specTemplate, constitutionTemplate } from '../generators/spec.js';
 import { masterRulesTemplate, cursorRulesTemplate, claudeMdTemplate, windsurfRulesTemplate, copilotInstructionsTemplate } from '../generators/rules.js';
 import { lgpdPolicyTemplate } from '../generators/lgpd-policy.js';
+import { skillMdTemplate, slashCommandTemplate, agentsMdTemplate, type SlashCommandName } from '../generators/skill.js';
 
 interface InitOptions {
   yes?: boolean;
@@ -173,6 +174,21 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     copilotInstructionsTemplate(masterRules)
   );
 
+  // Agent skill layer (Claude Code skill + slash commands + AGENTS.md)
+  console.log('\n' + chalk.bold('🤖  Installing AI agent skill layer…\n'));
+  await writeFileSafe(
+    join(root, '.claude', 'skills', 'vibeharness', 'SKILL.md'),
+    skillMdTemplate(projectName)
+  );
+  const slashCommands: SlashCommandName[] = ['prd', 'plan', 'pack', 'audit', 'doctor'];
+  for (const cmd of slashCommands) {
+    await writeFileSafe(
+      join(root, '.claude', 'commands', `${cmd}.md`),
+      slashCommandTemplate(cmd)
+    );
+  }
+  await writeFileSafe(join(root, 'AGENTS.md'), agentsMdTemplate(projectName, stack));
+
   // .gitignore
   const gitignorePath = join(root, '.gitignore');
   const existing = existsSync(gitignorePath)
@@ -199,9 +215,13 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     '    .vibe/CONSTITUTION.md              ← architecture laws',
     '    .vibe/LGPD_POLICY.md               ← LGPD compliance checklist',
     '    .cursorrules / CLAUDE.md / etc.    ← AI assistant rules',
+    '    .claude/skills + /commands         ← Claude Code skill & slash commands',
+    '    AGENTS.md                          ← guidance for opencode/Codex agents',
     '    .git/hooks/pre-commit              ← secret blocker hook',
     '',
     '  Next steps:',
+    '    npx vibe-harness prd    → write the product requirements',
+    '    npx vibe-harness plan   → curated stack recommendation',
     '    npx vibe-harness pack   → build sanitised context for AI',
     '    npx vibe-harness audit  → run production readiness check',
   ].join('\n') + '\n'));
