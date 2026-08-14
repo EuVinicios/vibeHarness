@@ -197,7 +197,7 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     join(root, '.claude', 'skills', 'vibeharness', 'SKILL.md'),
     skillMdTemplate(projectName)
   );
-  const slashCommands: SlashCommandName[] = ['prd', 'plan', 'pack', 'audit', 'doctor'];
+  const slashCommands: SlashCommandName[] = ['start', 'prd', 'plan', 'pack', 'audit', 'doctor'];
   for (const cmd of slashCommands) {
     await writeFileSafe(
       join(root, '.claude', 'commands', `${cmd}.md`),

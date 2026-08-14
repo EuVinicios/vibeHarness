@@ -1,0 +1,58 @@
+site_name: VibeHarness
+site_description: O harness de produção para desenvolvimento assistido por IA (vibecoding) — PRD, spec, stack curada, contexto sanitizado e auditoria em um único CLI.
+site_url: https://euvinicios.github.io/vibeHarness/
+repo_url: https://github.com/EuVinicios/vibeHarness
+repo_name: EuVinicios/vibeHarness
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: pt-BR
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Mudar para modo escuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Mudar para modo claro
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Início: index.md
+  - Instalação: instalacao.md
+  - Guia por estágio: guia-por-estagio.md
+  - Comandos:
+      - start (guiado): comandos/start.md
+      - prd: comandos/prd.md
+      - init: comandos/init.md
+      - plan (--apply): comandos/plan.md
+      - pack: comandos/pack.md
+      - audit: comandos/audit.md
+      - doctor: comandos/doctor.md
+  - Segurança & LGPD: seguranca.md

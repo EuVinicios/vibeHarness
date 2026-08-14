@@ -87,10 +87,11 @@ ${catalogStale ? '> ⚠️ **Registry is stale (> 30 days).** Run the registry s
 
   sections.push(`## Next Steps
 
-1. Confirm or adjust each primary choice above, then copy decisions into \`.vibe/SPEC.md\` (section 4).
-2. Run \`npx @vibeharness/cli prd\` if the PRD is not written yet.
-3. Run \`npx @vibeharness/cli doctor --fix\` to install Dependabot and keep dependencies fresh.
-4. Before shipping: \`npx @vibeharness/cli audit --report\` (target ≥ 70).
+1. **Let VibeHarness apply this for you:** \`npx @vibeharness/cli plan --apply\` installs the primary dependencies and generates the initial configs/starters (it never edits \`src/\`).
+2. Or confirm/adjust each primary choice above manually, then copy decisions into \`.vibe/SPEC.md\` (section 4).
+3. Run \`npx @vibeharness/cli prd\` if the PRD is not written yet.
+4. Run \`npx @vibeharness/cli doctor --fix\` to install Dependabot and keep dependencies fresh.
+5. Before shipping: \`npx @vibeharness/cli audit --report\` (target ≥ 70).
 
 ## Guardrails
 
