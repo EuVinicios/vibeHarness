@@ -2,15 +2,17 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
+import { loadAuditIgnores } from '../utils/audit-ignore.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 import { EXCLUDED_DIRS } from './security.js';
 
 export async function scanDeadCode(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
 
+  const auditIgnores = await loadAuditIgnores();
   const files = await fg('**/*.{js,ts,jsx,tsx}', {
     cwd: projectRoot(),
-    ignore: EXCLUDED_DIRS.map((d) => `**/${d}/**`),
+    ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`), ...auditIgnores],
     absolute: true,
     suppressErrors: true,
   });
@@ -32,21 +34,34 @@ export async function scanDeadCode(): Promise<AuditSectionResult> {
     todoCount += (content.match(/\/\/\s*TODO/gi) ?? []).length;
   }
 
-  // Check for package.json unused-script signals
+  // Check for package.json signals: CLI project detection + knip config
   const pkgPath = join(projectRoot(), 'package.json');
   let hasKnipConfig = false;
+  let isCliProject = false;
   try {
     const raw = await readFile(pkgPath, 'utf8');
-    hasKnipConfig = raw.includes('knip');
-  } catch { /* no package.json */ }
+    const pkg = JSON.parse(raw) as { bin?: unknown; knip?: unknown };
+    isCliProject = typeof pkg.bin === 'string' || (typeof pkg.bin === 'object' && pkg.bin !== null);
+    hasKnipConfig = 'knip' in pkg;
+  } catch { /* no package.json (or invalid) — assume neither */ }
 
   if (consoleLogs > 10) {
-    findings.push({
-      severity: 'low',
-      category: 'dead-code',
-      message: `${consoleLogs} console.log() calls found in source files`,
-      fix: 'Replace console.log with a structured logger (e.g., pino). Add `no-console` to your ESLint / Biome config to prevent new ones. Ask AI: "Remove all console.log calls from this file and replace with pino logger."',
-    });
+    // In CLI projects stdout IS the user interface — console.log is idiomatic.
+    if (isCliProject) {
+      findings.push({
+        severity: 'info',
+        category: 'dead-code',
+        message: `${consoleLogs} console.log() calls — OK for a CLI (stdout is the interface); consider a logger if this grows a server/UI`,
+        fix: 'No action needed for CLIs. If you add a server or UI, replace console.log with a structured logger (e.g., pino) and enable `no-console` in ESLint for non-CLI entry points.',
+      });
+    } else {
+      findings.push({
+        severity: 'low',
+        category: 'dead-code',
+        message: `${consoleLogs} console.log() calls found in source files`,
+        fix: 'Replace console.log with a structured logger (e.g., pino). Add `no-console` to your ESLint / Biome config to prevent new ones. Ask AI: "Remove all console.log calls from this file and replace with pino logger."',
+      });
+    }
   }
   if (todoCount > 20) {
     findings.push({

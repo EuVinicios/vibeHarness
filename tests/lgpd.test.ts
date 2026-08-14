@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os';
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { scanLGPD } from '../src/scanners/lgpd.js';
 
@@ -92,6 +92,15 @@ describe('scanLGPD', () => {
     expect(result.findings.some((f) => f.category === 'lgpd-pages')).toBe(false);
     expect(result.findings.some((f) => f.category === 'lgpd-dsr')).toBe(false);
     expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(true);
+  });
+
+  it('info findings (e.g. lgpd-scope) do NOT deduct points', async () => {
+    // CLI project: the only finding is the advisory lgpd-scope INFO — full score.
+    await writeFile(join(tmpDir, 'tool.ts'), `export function run() { return 1; }\n`, 'utf8');
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(true);
+    expect(result.findings.every((f) => f.severity === 'info')).toBe(true);
+    expect(result.score).toBe(result.maxScore);
   });
 
   it('runs DSR checks when an HTTP API surface exists', async () => {

@@ -9,6 +9,8 @@
 
 // actions/checkout@v4.4.0
 const CHECKOUT_SHA = '11d5960a326750d5838078e36cf38b85af677262';
+// actions/setup-node@v4.4.0
+const SETUP_NODE_SHA = '820762786026740c76f36085b0efc47a31fe5020';
 // gitleaks/gitleaks-action@v2.3.9
 const GITLEAKS_SHA = 'ff98106e4c7b2bc287b24eaf42907196329070c7';
 
@@ -60,7 +62,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@${CHECKOUT_SHA}
+      - name: Setup Node.js
+        uses: actions/setup-node@${SETUP_NODE_SHA}
+        with:
+          node-version: '20'
       - name: Run VibeHarness audit
-        run: npx @vibeharness/cli audit --fail-under 70
+        # --yes: npx must not prompt in CI (a prompt stalls or fails the job)
+        run: npx --yes @vibeharness/cli audit --fail-under 70
 `;
 }

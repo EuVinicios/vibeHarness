@@ -12,3 +12,7 @@ coverage/
 # generated stack output (test artifact)
 .vibe/STACK.md
 .vibe/CONTEXT.md
+.vibe/report/
+
+# vibe-harness — keep spec files versioned
+!.vibe/

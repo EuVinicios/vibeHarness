@@ -78,6 +78,67 @@ describe('packContext', () => {
     expect(content).not.toContain('hunter2value123');
   });
 
+  it('does NOT redact pinned git commit SHAs (CI action pins)', async () => {
+    await writeFile(
+      join(tmpDir, 'workflow-gen.ts'),
+      `const CHECKOUT_SHA = '11d5960a326750d5838078e36cf38b85af677262';\n`,
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).toContain('11d5960a326750d5838078e36cf38b85af677262');
+    expect(result.redactedCount).toBe(0);
+  });
+
+  it('does NOT redact regex alternation lists (secret-prefix patterns)', async () => {
+    // Built at runtime so the literal prefixes never appear in this source
+    // file (the repo's own pre-commit hook greps for them).
+    const prefixes = ['sk' + '_' + 'live' + '_', 'ghp_' + '[A-Za-z0-9]{36}', 'AKIA' + '[0-9A-Z]{16}'];
+    await writeFile(
+      join(tmpDir, 'hook.sh'),
+      `VH_PATTERNS="${prefixes.join('|')}"\n`,
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).toContain(`VH_PATTERNS="${prefixes.join('|')}"`);
+    expect(result.redactedCount).toBe(0);
+  });
+
+  it('does NOT redact shell command substitutions or the redaction marker itself', async () => {
+    await writeFile(
+      join(tmpDir, 'hook.sh'),
+      `VH_TMP="$(mktemp)"\n`,
+      'utf8'
+    );
+    await writeFile(
+      join(tmpDir, 'redactor.ts'),
+      `const REDACTED = '[REDACTED by vibe-harness]';\n`,
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).toContain('VH_TMP="$(mktemp)"');
+    expect(content).toContain(`const REDACTED = '[REDACTED by vibe-harness]';`);
+    expect(result.redactedCount).toBe(0);
+  });
+
+  it('still redacts real secrets in the same file as safe values', async () => {
+    await writeFile(
+      join(tmpDir, 'ci.ts'),
+      [
+        `const CHECKOUT_SHA = '11d5960a326750d5838078e36cf38b85af677262';`,
+        `const STRIPE_SECRET = 'whsec_abcdefghijklmnopqrstuvwxyz012345';`,
+      ].join('\n') + '\n',
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).toContain('11d5960a326750d5838078e36cf38b85af677262');
+    expect(content).not.toContain('whsec_abcdefghijklmnopqrstuvwxyz012345');
+    expect(result.redactedCount).toBeGreaterThan(0);
+  });
+
   it('never includes key material files (.pem/.key) even if reachable', async () => {
     await writeFile(join(tmpDir, 'server.pem'), '-----BEGIN PRIVATE KEY-----\nMIIsecret\n-----END PRIVATE KEY-----\n', 'utf8');
     await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });

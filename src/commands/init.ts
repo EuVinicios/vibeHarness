@@ -12,6 +12,7 @@ import { securityWorkflowTemplate } from '../generators/security-workflow.js';
 
 interface InitOptions {
   yes?: boolean;
+  force?: boolean;
 }
 
 interface ThreatModel {
@@ -81,21 +82,33 @@ else
   # Reads staged files from a temp file so the loop runs in THIS shell
   # (pipeline subshells cannot abort the hook) and filenames with spaces work.
   VH_PATTERNS="sk_live_|sk-ant-|sk-proj_|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[0-9A-Za-z_-]{20,}|xox[abprs]-|AIza[0-9A-Za-z_-]{35}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY"
-  VH_TMP="\$(mktemp)"
-  git diff --cached --name-only > "\$VH_TMP" 2>/dev/null
+  VH_TMP="$(mktemp)"
+  git diff --cached --name-only > "$VH_TMP" 2>/dev/null
   VH_BLOCKED=0
   while IFS= read -r VH_FILE; do
-    [ -n "\$VH_FILE" ] || continue
-    if [ -f "\$VH_FILE" ] && grep -Eq "\$VH_PATTERNS" "\$VH_FILE" 2>/dev/null; then
+    [ -n "$VH_FILE" ] || continue
+    # Skip files allow-listed in .vibe/auditignore (same file the audit
+    # scanners honour) — e.g. test fixtures and pattern-definition sources.
+    if [ -f ".vibe/auditignore" ]; then
+      VH_SKIPPED=0
+      while IFS= read -r VH_IGN; do
+        case "$VH_IGN" in ""|'#'*) continue ;; esac
+        case "$VH_FILE" in
+          $VH_IGN) VH_SKIPPED=1; break ;;
+        esac
+      done < ".vibe/auditignore"
+      [ "$VH_SKIPPED" -eq 1 ] && continue
+    fi
+    if [ -f "$VH_FILE" ] && grep -Eq "$VH_PATTERNS" "$VH_FILE" 2>/dev/null; then
       echo ""
-      echo "🚨 vibe-harness: Potential secret detected in: \$VH_FILE"
+      echo "🚨 vibe-harness: Potential secret detected in: $VH_FILE"
       echo "   Commit blocked. Move secrets to environment variables."
       echo "   (Install gitleaks for full coverage: https://github.com/gitleaks/gitleaks)"
       VH_BLOCKED=1
     fi
-  done < "\$VH_TMP"
-  rm -f "\$VH_TMP"
-  [ "\$VH_BLOCKED" -eq 1 ] && exit 1
+  done < "$VH_TMP"
+  rm -f "$VH_TMP"
+  [ "$VH_BLOCKED" -eq 1 ] && exit 1
 fi
 # --- end vibe-harness ---
 `;
@@ -156,14 +169,18 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const vibeDir = join(root, '.vibe');
   const usesSupabase = stack.includes('Supabase');
 
+  // --force overwrites files that already exist (default: skip, never clobber)
+  const write = (filePath: string, content: string): Promise<boolean> =>
+    writeFileSafe(filePath, content, opts.force === true);
+
   // .vibe/ spec files
-  await writeFileSafe(join(vibeDir, 'SPEC.md'), specTemplate(projectName, stack));
-  await writeFileSafe(join(vibeDir, 'CONSTITUTION.md'), constitutionTemplate(projectName));
-  await writeFileSafe(join(vibeDir, 'LGPD_POLICY.md'), lgpdPolicyTemplate({
+  await write(join(vibeDir, 'SPEC.md'), specTemplate(projectName, stack));
+  await write(join(vibeDir, 'CONSTITUTION.md'), constitutionTemplate(projectName));
+  await write(join(vibeDir, 'LGPD_POLICY.md'), lgpdPolicyTemplate({
     projectName,
     ...threatModel,
   }));
-  await writeFileSafe(
+  await write(
     join(vibeDir, 'threat-model.json'),
     JSON.stringify({ projectName, stack, ...threatModel }, null, 2)
   );
@@ -179,36 +196,36 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     usesSupabase,
   });
 
-  await writeFileSafe(join(root, '.cursorrules'), cursorRulesTemplate(masterRules));
-  await writeFileSafe(
+  await write(join(root, '.cursorrules'), cursorRulesTemplate(masterRules));
+  await write(
     join(root, '.cursor', 'rules', 'vibeharness.mdc'),
     '---\ndescription: VibeHarness security & architecture guardrails\nglobs: ["**/*"]\n---\n\n' + masterRules
   );
-  await writeFileSafe(join(root, 'CLAUDE.md'), claudeMdTemplate(masterRules, projectName));
-  await writeFileSafe(join(root, '.windsurfrules'), windsurfRulesTemplate(masterRules));
-  await writeFileSafe(
+  await write(join(root, 'CLAUDE.md'), claudeMdTemplate(masterRules, projectName));
+  await write(join(root, '.windsurfrules'), windsurfRulesTemplate(masterRules));
+  await write(
     join(root, '.github', 'copilot-instructions.md'),
     copilotInstructionsTemplate(masterRules)
   );
 
   // Agent skill layer (Claude Code skill + slash commands + AGENTS.md)
   console.log('\n' + chalk.bold('🤖  Installing AI agent skill layer…\n'));
-  await writeFileSafe(
+  await write(
     join(root, '.claude', 'skills', 'vibeharness', 'SKILL.md'),
     skillMdTemplate(projectName)
   );
   const slashCommands: SlashCommandName[] = ['start', 'prd', 'plan', 'pack', 'audit', 'doctor'];
   for (const cmd of slashCommands) {
-    await writeFileSafe(
+    await write(
       join(root, '.claude', 'commands', `${cmd}.md`),
       slashCommandTemplate(cmd)
     );
   }
-  await writeFileSafe(join(root, 'AGENTS.md'), agentsMdTemplate(projectName, stack));
+  await write(join(root, 'AGENTS.md'), agentsMdTemplate(projectName, stack));
 
   // Security CI workflow for the user's project (gitleaks + npm audit + vibe audit)
   console.log('\n' + chalk.bold('🔒  Installing security CI workflow…\n'));
-  await writeFileSafe(
+  await write(
     join(root, '.github', 'workflows', 'security.yml'),
     securityWorkflowTemplate(projectName)
   );

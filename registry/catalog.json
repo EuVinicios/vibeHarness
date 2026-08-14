@@ -19,7 +19,7 @@
       {
         "repo": "vercel/next.js",
         "name": "Next.js",
-        "stars": 141789,
+        "stars": 141796,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -33,9 +33,9 @@
       {
         "repo": "facebook/react",
         "name": "React",
-        "stars": 247256,
+        "stars": 247270,
         "license": "MIT",
-        "lastPush": "2026-08-13",
+        "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
         "tags": [
           "ui",
@@ -46,7 +46,7 @@
       {
         "repo": "vitejs/vite",
         "name": "Vite",
-        "stars": 82352,
+        "stars": 82353,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -59,7 +59,7 @@
       {
         "repo": "tailwindlabs/tailwindcss",
         "name": "Tailwind CSS",
-        "stars": 97250,
+        "stars": 97253,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -72,7 +72,7 @@
       {
         "repo": "sveltejs/svelte",
         "name": "Svelte",
-        "stars": 87983,
+        "stars": 87988,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -85,8 +85,8 @@
       {
         "repo": "withastro/astro",
         "name": "Astro",
-        "stars": 61772,
-        "license": "NOASSERTION",
+        "stars": 61776,
+        "license": "MIT",
         "licenseOverride": "MIT",
         "licenseNote": "GitHub API reports NOASSERTION (monorepo ships vendored license files); verified MIT from LICENSE file (2026-08-14).",
         "lastPush": "2026-08-14",
@@ -102,7 +102,7 @@
       {
         "repo": "expressjs/express",
         "name": "Express",
-        "stars": 69362,
+        "stars": 69368,
         "license": "MIT",
         "lastPush": "2026-08-01",
         "lastVerified": "2026-08-14",
@@ -129,7 +129,7 @@
       {
         "repo": "nestjs/nest",
         "name": "NestJS",
-        "stars": 76373,
+        "stars": 76378,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -143,7 +143,7 @@
       {
         "repo": "honojs/hono",
         "name": "Hono",
-        "stars": 31663,
+        "stars": 31664,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -159,7 +159,7 @@
       {
         "repo": "supabase/supabase",
         "name": "Supabase",
-        "stars": 107981,
+        "stars": 107993,
         "license": "Apache-2.0",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -173,7 +173,7 @@
       {
         "repo": "prisma/prisma",
         "name": "Prisma",
-        "stars": 47575,
+        "stars": 47577,
         "license": "Apache-2.0",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -186,7 +186,7 @@
       {
         "repo": "drizzle-team/drizzle-orm",
         "name": "Drizzle ORM",
-        "stars": 35477,
+        "stars": 35479,
         "license": "Apache-2.0",
         "lastPush": "2026-08-12",
         "lastVerified": "2026-08-14",
@@ -202,7 +202,7 @@
       {
         "repo": "nextauthjs/next-auth",
         "name": "Auth.js (NextAuth)",
-        "stars": 28324,
+        "stars": 28325,
         "license": "ISC",
         "lastPush": "2026-07-22",
         "lastVerified": "2026-08-14",
@@ -215,7 +215,7 @@
       {
         "repo": "better-auth/better-auth",
         "name": "Better Auth",
-        "stars": 29541,
+        "stars": 29542,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -258,7 +258,7 @@
       {
         "repo": "fabian-hiller/valibot",
         "name": "Valibot",
-        "stars": 8929,
+        "stars": 8928,
         "license": "MIT",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -271,7 +271,7 @@
       {
         "repo": "jquense/yup",
         "name": "Yup",
-        "stars": 23674,
+        "stars": 23675,
         "license": "MIT",
         "lastPush": "2026-08-12",
         "lastVerified": "2026-08-14",
@@ -286,7 +286,7 @@
       {
         "repo": "vitest-dev/vitest",
         "name": "Vitest",
-        "stars": 16947,
+        "stars": 16948,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -299,9 +299,9 @@
       {
         "repo": "microsoft/playwright",
         "name": "Playwright",
-        "stars": 94511,
+        "stars": 94524,
         "license": "Apache-2.0",
-        "lastPush": "2026-08-13",
+        "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
         "tags": [
           "e2e",
@@ -312,7 +312,7 @@
       {
         "repo": "jestjs/jest",
         "name": "Jest",
-        "stars": 45470,
+        "stars": 45469,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -324,7 +324,7 @@
       {
         "repo": "testing-library/react-testing-library",
         "name": "Testing Library",
-        "stars": 19646,
+        "stars": 19644,
         "license": "MIT",
         "lastPush": "2026-04-02",
         "lastVerified": "2026-08-14",
@@ -338,7 +338,7 @@
       {
         "repo": "coollabsio/coolify",
         "name": "Coolify",
-        "stars": 60558,
+        "stars": 60584,
         "license": "Apache-2.0",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -351,7 +351,7 @@
       {
         "repo": "basecamp/kamal",
         "name": "Kamal",
-        "stars": 14505,
+        "stars": 14507,
         "license": "MIT",
         "lastPush": "2026-08-12",
         "lastVerified": "2026-08-14",
@@ -364,8 +364,8 @@
       {
         "repo": "caprover/caprover",
         "name": "CapRover",
-        "stars": 15128,
-        "license": "NOASSERTION",
+        "stars": 15129,
+        "license": "Apache-2.0",
         "licenseOverride": "Apache-2.0",
         "licenseNote": "GitHub API reports NOASSERTION (multiple license files); verified Apache-2.0 from LICENSE file (2026-08-14).",
         "lastPush": "2026-08-08",
@@ -395,8 +395,8 @@
       {
         "repo": "modelcontextprotocol/typescript-sdk",
         "name": "MCP TypeScript SDK",
-        "stars": 3234,
-        "license": "NOASSERTION",
+        "stars": 13169,
+        "license": "Apache-2.0",
         "licenseOverride": "Apache-2.0",
         "licenseNote": "Licensing transition MIT → Apache-2.0 (verified from LICENSE file, 2026-08-14); both permissive.",
         "lastPush": "2026-08-14",
@@ -410,7 +410,7 @@
       {
         "repo": "github/github-mcp-server",
         "name": "GitHub MCP Server",
-        "stars": 32241,
+        "stars": 32249,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -425,7 +425,7 @@
       {
         "repo": "obra/superpowers",
         "name": "Superpowers",
-        "stars": 272015,
+        "stars": 272141,
         "license": "MIT",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -438,7 +438,7 @@
       {
         "repo": "anthropics/skills",
         "name": "Anthropic Skills",
-        "stars": 169354,
+        "stars": 169406,
         "license": "none",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -452,9 +452,9 @@
       {
         "repo": "github/spec-kit",
         "name": "GitHub Spec Kit",
-        "stars": 128001,
+        "stars": 128380,
         "license": "MIT",
-        "lastPush": "2026-08-13",
+        "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
         "tags": [
           "spec-driven",
@@ -465,7 +465,7 @@
       {
         "repo": "Fission-AI/OpenSpec",
         "name": "OpenSpec",
-        "stars": 64868,
+        "stars": 64897,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -477,7 +477,7 @@
       {
         "repo": "bmad-code-org/BMAD-METHOD",
         "name": "BMAD Method",
-        "stars": 51895,
+        "stars": 51912,
         "license": "NOASSERTION",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -491,7 +491,7 @@
       {
         "repo": "yamadashy/repomix",
         "name": "Repomix",
-        "stars": 27832,
+        "stars": 27846,
         "license": "MIT",
         "lastPush": "2026-08-11",
         "lastVerified": "2026-08-14",
@@ -504,7 +504,7 @@
       {
         "repo": "anthropics/claude-code",
         "name": "Claude Code",
-        "stars": 141429,
+        "stars": 141461,
         "license": "none",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -518,7 +518,7 @@
       {
         "repo": "BuilderMethods/agent-os",
         "name": "Agent OS",
-        "stars": 5267,
+        "stars": 5270,
         "license": "MIT",
         "lastPush": "2026-05-05",
         "lastVerified": "2026-08-14",
@@ -531,7 +531,7 @@
       {
         "repo": "PatrickJS/awesome-cursorrules",
         "name": "Awesome Cursor Rules",
-        "stars": 40586,
+        "stars": 40588,
         "license": "CC0-1.0",
         "lastPush": "2026-05-30",
         "lastVerified": "2026-08-14",
@@ -546,7 +546,7 @@
       {
         "repo": "gitleaks/gitleaks",
         "name": "Gitleaks",
-        "stars": 28710,
+        "stars": 28720,
         "license": "MIT",
         "lastPush": "2026-07-29",
         "lastVerified": "2026-08-14",
@@ -559,7 +559,7 @@
       {
         "repo": "google/osv-scanner",
         "name": "OSV-Scanner",
-        "stars": 10828,
+        "stars": 10832,
         "license": "Apache-2.0",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -572,9 +572,9 @@
       {
         "repo": "trufflesecurity/trufflehog",
         "name": "TruffleHog",
-        "stars": 27455,
+        "stars": 27462,
         "license": "AGPL-3.0",
-        "lastPush": "2026-08-13",
+        "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
         "tags": [
           "secrets",
@@ -586,7 +586,7 @@
       {
         "repo": "semgrep/semgrep",
         "name": "Semgrep",
-        "stars": 16217,
+        "stars": 16225,
         "license": "LGPL-2.1",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -601,7 +601,7 @@
       {
         "repo": "renovatebot/renovate",
         "name": "Renovate",
-        "stars": 22261,
+        "stars": 22264,
         "license": "AGPL-3.0",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -615,7 +615,7 @@
       {
         "repo": "dependabot/dependabot-core",
         "name": "Dependabot Core",
-        "stars": 5721,
+        "stars": 5722,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",

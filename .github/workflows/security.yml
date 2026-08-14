@@ -1,0 +1,44 @@
+# Security gate for @vibeharness/cli — installed by vibe-harness.
+# Secret scanning (gitleaks) + dependency CVEs (npm audit).
+# NOTE (repo-specific): the generated template also ships a vibe-audit job;
+# this repo runs the audit from the local build with a higher bar in
+# vibe-gate.yml (--fail-under 80), so that job is trimmed here.
+# Actions are pinned by commit SHA on purpose — update them deliberately.
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: 🙈 Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependencies:
+    name: 📦 Dependency CVE audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: npm audit (fail on high/critical)
+        run: |
+          if [ ! -f package.json ]; then
+            echo "No package.json — skipping npm audit."
+            exit 0
+          fi
+          npm audit --audit-level=high
+

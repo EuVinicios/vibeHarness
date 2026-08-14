@@ -1,6 +1,6 @@
 {
   "name": "@vibeharness/cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Production harness for vibecoding — PRD, spec, curated stack recommendations, AI rules, context packing and audits in a single CLI",
   "type": "module",
   "bin": {
@@ -13,7 +13,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node --esm src/cli.ts",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint .",
+    "knip": "knip",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --passWithNoTests",
     "registry:sync": "node scripts/registry-sync.mjs",
     "prepublishOnly": "npm run build"
@@ -50,16 +51,26 @@
     "ora": "^9.4.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.2.0",
-    "@types/semver": "^7.5.8",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0",
     "jest": "^30.4.2",
+    "knip": "^6.32.2",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.67.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "knip": {
+    "ignore": [
+      "src/audit/engine.ts"
+    ],
+    "ignoreExportsUsedInFile": true
   },
   "jest": {
     "preset": "ts-jest/presets/default-esm",

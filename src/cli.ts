@@ -50,6 +50,7 @@ program
     'Phase 1 — Initialise spec, LGPD policy, AI rules, agent skill, and install pre-commit hook'
   )
   .option('--yes', 'Skip interactive prompts and use safe defaults')
+  .option('--force', 'Overwrite existing generated files (default: skip files that already exist)')
   .action(initCommand);
 
 program

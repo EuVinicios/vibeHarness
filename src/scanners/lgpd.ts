@@ -31,7 +31,7 @@ const PII_LOG_PATTERNS: [RegExp, string][] = [
   ],
   // E-mail in logs
   [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/,
+    /console\.(log|error|warn|info|debug)\s*\([^)]*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
     'E-mail address in log statement',
   ],
   // Phone number in logs (BR format)
@@ -386,7 +386,8 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     if (f.severity === 'critical') return acc + 8;
     if (f.severity === 'high') return acc + 5;
     if (f.severity === 'medium') return acc + 3;
-    return acc + 1;
+    if (f.severity === 'low') return acc + 1;
+    return acc; // info findings are advisory — no deduction
   }, 0);
 
   return { score: Math.max(0, maxScore - deductions), maxScore, findings };

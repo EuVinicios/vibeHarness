@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-14 — "Dogfooding hardening"
+
+VibeHarness audited itself with its own CLI (score went 97 → **100/100**) and every
+false positive found in the process was fixed in the product, not silenced locally.
+
+### Fixed
+- **LGPD scoring bug**: informational findings (e.g. "no web surface — web-only
+  checks skipped", which is N/A for CLIs) deducted 1 point from the score. Info
+  findings are now advisory-only — 0 deduction, matching the dead-code scanner's
+  scoring. CLI/library projects no longer cap at 19/20.
+- **`pack` false-positive redactions**: the generic secret fallback now skips
+  known-safe values — pinned git commit SHAs (CI action pins, integrity hashes),
+  shell command substitutions (`$(mktemp)`), regex alternation lists of secret
+  *prefixes* (`sk_live_|ghp_…`), and the `[REDACTED by vibe-harness]` marker
+  itself. Curated high-precision patterns (sk_live_…, AKIA…, ghp_…) are
+  unaffected and still always redact. Self-packing VibeHarness went from 5 false
+  redactions to 0.
+- **`doctor` false "unknown" status on Node 26**: EOL table now covers Node 26
+  (EOL 2029-04-30).
+- **`npm run lint` was broken**: ESLint was referenced by the script but neither
+  installed nor configured. The repo now ships `eslint.config.js` (flat config,
+  typescript-eslint recommended, `no-console` off for the CLI where stdout is
+  the interface) with ESLint 10 + @eslint/js + globals as devDependencies.
+
+### Added
+- **`init --force`**: overwrite already-generated files, for consistency with
+  `prd --force` / `plan --force` (default remains skip-existing, never clobber).
+- **Pre-commit hook honours `.vibe/auditignore`**: the grep fallback now skips
+  allow-listed files (glob patterns, `#` comments), matching what the audit
+  scanners already do. Found by dogfooding — the hook blocked commits to the
+  very files that define the detection patterns and to test fixtures with
+  intentional fake secrets.
+- **`security.yml` template hardening**: the generated vibe-audit job now sets
+  up Node.js (SHA-pinned setup-node) and runs `npx --yes @vibeharness/cli` —
+  without it the job could stall on the npx install prompt or use the runner's
+  arbitrary default Node.
+- **CLI-aware dead-code scanner**: when `package.json` declares a `bin`, excess
+  `console.log` is reported as INFO (no deduction) instead of LOW (-2) — stdout
+  is a CLI's user interface. Non-CLI projects keep the stricter signal.
+- **Dead-code scanner honours `.vibe/auditignore`** (like the secret and LGPD
+  scanners already did).
+- **Knip** configured (with `npm run knip`) — removed 1 dead export
+  (`categoriesOf`) and the unused `@types/semver` devDependency.
+- Real `.vibe/PRD.md` for VibeHarness itself (dogfooding: was a placeholder).
+
+### Changed
+- `security.yml` (this repo's copy): the duplicate audit job was trimmed — the
+  repo runs the audit from the local build with a higher bar in `vibe-gate.yml`
+  (`--fail-under 80`); gitleaks + `npm audit` jobs remain.
+- Registry catalog re-synced (stars/licenses/lastPush refreshed from the API).
+
+### Tests
+- 8 new tests (113 total across 16 suites): LGPD info-no-deduction, dead-code
+  CLI detection + auditignore, packager safe-value allowlist (SHA pins, prefix
+  regexes, command substitution, marker) and redaction-still-works alongside
+  safe values, Node 26 EOL.
+
+### Release process
+- v0.5.0 had merged to `main` without its git tag (the release workflow
+  publishes from tag pushes). Tag `v0.5.0` was created retroactively at the
+  v0.5.0 merge commit so npm history and the CHANGELOG stay traceable; `v0.5.1`
+  is tagged at its merge commit as usual.
+
 ## [0.5.0] - 2026-08-14 — "From pointers to harness"
 
 The tool stops *pointing* at what you should do and starts *doing* it.
