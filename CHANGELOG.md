@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-08-14
+
+### Fixed
+- `--version` reported 0.3.0 (hardcoded string in cli.ts). The CLI now reads its
+  version from package.json — single source of truth, cannot drift again.
+
 ## [0.4.0] - 2026-08-14 — "Hardened"
 
 Security-focused release: fixes the prompt-injection chain, the npm supply-chain

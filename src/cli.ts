@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { initCommand } from './commands/init.js';
 import { packCommand } from './commands/pack.js';
 import { rulesCommand } from './commands/rules.js';
@@ -8,6 +11,19 @@ import { auditCommand } from './commands/audit.js';
 import { prdCommand } from './commands/prd.js';
 import { planCommand } from './commands/plan.js';
 import { doctorCommand } from './commands/doctor.js';
+
+// Single source of truth: version comes from package.json — never hardcode it
+// here again (v0.4.0 shipped reporting 0.3.0 because of a hardcoded string).
+let cliVersion = '0.0.0';
+try {
+  const pkgRaw = await readFile(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'),
+    'utf8'
+  );
+  cliVersion = (JSON.parse(pkgRaw) as { version?: string }).version ?? cliVersion;
+} catch {
+  /* fall back to 0.0.0 */
+}
 
 const program = new Command();
 
@@ -17,7 +33,7 @@ program
     chalk.bold.cyan('VibeHarness') +
       ' — All-in-one production harness for AI-assisted development'
   )
-  .version('0.3.0');
+  .version(cliVersion);
 
 program
   .command('init')
