@@ -50,6 +50,42 @@ describe('packContext', () => {
     expect(result.redactedCount).toBeGreaterThan(0);
   });
 
+  it('redacts entire multiline PEM private key blocks', async () => {
+    const pemBody = 'MIIabc123DEF456ghi789JKL012MNO345PQR678STU901VWX234YZa567bcd890ef';
+    await writeFile(
+      join(tmpDir, 'keys.md'),
+      `# notes\n-----BEGIN RSA PRIVATE KEY-----\n${pemBody}\n${pemBody}\n-----END RSA PRIVATE KEY-----\ndone\n`,
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).not.toContain(pemBody);
+    expect(content).toContain('[REDACTED by vibe-harness]');
+  });
+
+  it('redacts unquoted env-style secret assignments', async () => {
+    await writeFile(join(tmpDir, 'deploy.sh'), 'DB_PASSWORD=sup3rs3cr3t-value\n', 'utf8');
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).not.toContain('sup3rs3cr3t-value');
+    expect(content).toContain('DB_PASSWORD=[REDACTED by vibe-harness]');
+  });
+
+  it('redacts YAML-style unquoted secrets', async () => {
+    await writeFile(join(tmpDir, 'settings.yaml'), 'database_password: hunter2value123\n', 'utf8');
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).not.toContain('hunter2value123');
+  });
+
+  it('never includes key material files (.pem/.key) even if reachable', async () => {
+    await writeFile(join(tmpDir, 'server.pem'), '-----BEGIN PRIVATE KEY-----\nMIIsecret\n-----END PRIVATE KEY-----\n', 'utf8');
+    await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(join(tmpDir, 'CONTEXT.md'), 'utf8');
+    expect(content).not.toContain('MIIsecret');
+    expect(content).not.toContain('server.pem');
+  });
+
   it('skips non-text file extensions not in the text whitelist', async () => {
     // .db is not in TEXT_EXTENSIONS and not in the binary-exclude glob patterns,
     // so it reaches the extension check and is counted as skipped binary.

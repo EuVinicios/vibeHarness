@@ -99,7 +99,7 @@ export async function rulesCommand(opts: RulesOptions): Promise<void> {
   console.log('\n' + chalk.bold.green('✅  AI rule files generated!'));
   console.log(
     chalk.dim(
-      `  Tools targeted: ${tools.join(', ')}\n  Next: run \`vibe-harness audit\` before shipping.\n`
+      `  Tools targeted: ${tools.join(', ')}\n  Next: run \`npx @vibeharness/cli audit\` before shipping.\n`
     )
   );
 }

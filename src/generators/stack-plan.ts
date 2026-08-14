@@ -79,24 +79,24 @@ ${catalogStale ? '> ⚠️ **Registry is stale (> 30 days).** Run the registry s
   sections.push(categorySection(catalog, 'MCP Servers', 'mcp', 'Extend your AI agent with tool access.'));
   sections.push(categorySection(catalog, 'AI-Assisted Development Tools', 'ai-tools', 'Methodology and workflow references, ranked by community adoption.'));
   sections.push(categorySection(catalog, 'Security Tooling', 'security', 'Run secret scanning and CVE scanning in CI.'));
-  sections.push(categorySection(catalog, 'Dependency Maintenance', 'maintenance', 'Keep the stack fresh — run `vibe-harness doctor` regularly.'));
+  sections.push(categorySection(catalog, 'Dependency Maintenance', 'maintenance', 'Keep the stack fresh — run `npx @vibeharness/cli doctor` regularly.'));
 
   const privacyNote = hasSensitiveData
     ? `- **Privacy:** project processes PII — follow \`.vibe/LGPD_POLICY.md\`, enable RLS, encrypt at rest.`
-    : '- **Privacy:** no PII declared — re-run `vibe-harness init` if that changes.';
+    : '- **Privacy:** no PII declared — re-run `npx @vibeharness/cli init` if that changes.';
 
   sections.push(`## Next Steps
 
 1. Confirm or adjust each primary choice above, then copy decisions into \`.vibe/SPEC.md\` (section 4).
-2. Run \`vibe-harness prd\` if the PRD is not written yet.
-3. Run \`vibe-harness doctor --fix\` to install Dependabot and keep dependencies fresh.
-4. Before shipping: \`vibe-harness audit --report\` (target ≥ 70).
+2. Run \`npx @vibeharness/cli prd\` if the PRD is not written yet.
+3. Run \`npx @vibeharness/cli doctor --fix\` to install Dependabot and keep dependencies fresh.
+4. Before shipping: \`npx @vibeharness/cli audit --report\` (target ≥ 70).
 
 ## Guardrails
 
 - **Security:** never commit secrets; parameterised SQL only; validate all inputs.
 ${privacyNote}
-- **Freshness:** re-run \`vibe-harness plan\` after each registry sync to revisit recommendations.
+- **Freshness:** re-run \`npx @vibeharness/cli plan\` after each registry sync to revisit recommendations.
 `);
 
   return sections.filter(Boolean).join('\n---\n\n');

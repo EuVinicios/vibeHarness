@@ -50,6 +50,32 @@ export function isLicenseAllowed(catalog: Catalog, entry: CatalogEntry): boolean
   return catalog.criteria.allowedLicenses.includes(entry.license);
 }
 
+/**
+ * Validate every catalog entry against the catalog's own curation criteria.
+ * Returns human-readable violation strings — empty array when all is well.
+ * Used to fail loud (instead of fail open) when a license/activity/stars
+ * change slips in through an automated registry sync.
+ */
+export function catalogViolations(catalog: Catalog, now = new Date()): string[] {
+  const violations: string[] = [];
+  const nowMs = now.getTime();
+  for (const [category, entries] of Object.entries(catalog.categories)) {
+    for (const entry of entries) {
+      if (!isLicenseAllowed(catalog, entry)) {
+        violations.push(`${category}/${entry.repo}: license "${entry.license}" not allowed`);
+      }
+      if (entry.stars < catalog.criteria.minStars) {
+        violations.push(`${category}/${entry.repo}: ${entry.stars} stars < minStars ${catalog.criteria.minStars}`);
+      }
+      const pushAgeDays = (nowMs - new Date(entry.lastPush).getTime()) / (1000 * 60 * 60 * 24);
+      if (Number.isNaN(pushAgeDays) || pushAgeDays > catalog.criteria.maxPushAgeDays) {
+        violations.push(`${category}/${entry.repo}: last push ${entry.lastPush} older than ${catalog.criteria.maxPushAgeDays} days`);
+      }
+    }
+  }
+  return violations;
+}
+
 export function topEntries(catalog: Catalog, category: string, n = 3): CatalogEntry[] {
   const entries = catalog.categories[category] ?? [];
   return [...entries].sort((a, b) => b.stars - a.stars).slice(0, n);

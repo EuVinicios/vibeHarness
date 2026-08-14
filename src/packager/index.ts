@@ -24,12 +24,54 @@ const TEXT_EXTENSIONS = new Set([
   '.sh', '.bash', '.zsh',
 ]);
 
-/** Patterns for secrets — redact matching lines */
-const REDACT_LINE_PATTERNS: RegExp[] = [
-  ...SECRET_PATTERNS.map(([r]) => r),
-  /^\s*(export\s+)?(const|let|var)?\s*[A-Z_]{4,}\s*=\s*["'][^"']{8,}["']/,
-  /^\s*[A-Z_]{4,}\s*=.+/m,
+/** Multiline PEM private-key blocks — redacted as a whole before line processing. */
+const PEM_BLOCK_PATTERN =
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g;
+
+const REDACTED = '[REDACTED by vibe-harness]';
+
+/** Generic assignment forms the curated SECRET_PATTERNS don't already cover. */
+const GENERIC_ASSIGN_PATTERNS: RegExp[] = [
+  // env-style, unquoted: DB_PASSWORD=sup3rs3cret (8+ chars, no spaces)
+  /^(\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|SECRET|TOKEN|API_?KEY|ACCESS_KEY|PRIVATE_KEY|CREDENTIALS?)[A-Za-z0-9_]*\s*=\s*)(["']?)[^\s"']{8,}\2\s*$/,
+  // YAML-style, quoted or bare: password: sup3rs3cret / api_key: "value"
+  /^(\s*-?\s*[A-Za-z_][A-Za-z0-9_-]*(?:password|secret|token|api[_-]?key|access[_-]?key)[A-Za-z0-9_-]*\s*:\s+)(?:"[^"]{8,}"|'[^']{8,}'|[^\s#]{8,})\s*$/,
+  // generic UPPER_CASE var with quoted value: const STRIPE_KEY = "sk_..."
+  /^(\s*(?:export\s+)?(?:const|let|var)?\s*[A-Z_][A-Z0-9_]{3,}\s*=\s*)(["'])[^"']{8,}\2/,
 ];
+
+function redactLine(line: string): string {
+  // Replace the secret substring itself — works for any format the curated
+  // patterns match (quoted, JSON, bare, URI-embedded), not just `= "..."`.
+  let out = line;
+  for (const [pattern] of SECRET_PATTERNS) {
+    out = out.replace(pattern, REDACTED);
+  }
+  // Generic fallbacks — keep the identifier, redact only the value.
+  for (const pattern of GENERIC_ASSIGN_PATTERNS) {
+    const match = out.match(pattern);
+    if (match) {
+      out = out.replace(pattern, `$1${REDACTED}`);
+      break;
+    }
+  }
+  return out;
+}
+
+function sanitiseContent(content: string): { sanitised: string; redacted: number } {
+  let working = content;
+  // Redact full PEM blocks first — line-based redaction cannot handle them.
+  working = working.replace(PEM_BLOCK_PATTERN, `-----BEGIN PRIVATE KEY----- ${REDACTED} -----END PRIVATE KEY-----`);
+
+  const lines = working.split('\n');
+  let redacted = 0;
+  const sanitised = lines.map((line) => {
+    const clean = redactLine(line);
+    if (clean !== line) redacted++;
+    return clean;
+  }).join('\n');
+  return { sanitised, redacted: redacted };
+}
 
 const MAX_FILE_BYTES = 100 * 1024; // 100 KB — skip huge files
 
@@ -47,28 +89,6 @@ export interface PackResult {
   redactedCount: number;
   totalBytes: number;
   skippedBinary: number;
-}
-
-function redactLine(line: string): string {
-  for (const pattern of REDACT_LINE_PATTERNS) {
-    if (pattern.test(line)) {
-      // Keep the variable name, redact the value
-      return line.replace(/=\s*["'][^"']+["']/, '= "[REDACTED by vibe-harness]"')
-        .replace(/:\s*["'][^"']{8,}["']/, ': "[REDACTED by vibe-harness]"');
-    }
-  }
-  return line;
-}
-
-function sanitiseContent(content: string): { sanitised: string; redacted: number } {
-  const lines = content.split('\n');
-  let redacted = 0;
-  const sanitised = lines.map((line) => {
-    const clean = redactLine(line);
-    if (clean !== line) redacted++;
-    return clean;
-  }).join('\n');
-  return { sanitised, redacted };
 }
 
 async function getArchitectureSummary(): Promise<string> {
@@ -123,15 +143,21 @@ export async function packContext(opts: PackOptions = {}): Promise<PackResult> {
 
   const excludePatterns = [
     ...EXCLUDED_DIRS.map((d) => `**/${d}/**`),
+    // All env files (defense in depth — dot:true globs could reintroduce them)
     '**/.env',
-    '**/.env.local',
-    '**/.env.*.local',
+    '**/.env.*',
+    '**/env.*',
     '**/*.lock',
     '**/package-lock.json',
     '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.svg',
     '**/*.woff', '**/*.woff2', '**/*.ttf', '**/*.eot',
     '**/*.ico', '**/*.webp', '**/*.mp4', '**/*.mp3',
     '**/*.pdf', '**/*.zip', '**/*.tar', '**/*.gz',
+    // Key material & credential files — never leave the machine
+    '**/*.pem', '**/*.key', '**/*.p12', '**/*.pfx', '**/*.kdbx',
+    '**/id_rsa*', '**/id_ed25519*', '**/known_hosts*',
+    '**/credentials*', '**/secrets/**',
+    '**/*.tfstate', '**/service-account*.json',
     '.vibe/CONTEXT.md',
     ...(opts.extraExclude ?? []),
     ...testExcludes,
@@ -194,7 +220,8 @@ export async function packContext(opts: PackOptions = {}): Promise<PackResult> {
   const header = `# VibeHarness Context Pack
 > Generated: ${new Date().toISOString()}
 > Files included: ${fileCount} | Secrets redacted: ${redactedCount} | Binary skipped: ${skippedBinary}
-> ⚠️  Paste this file into your AI assistant. Do NOT share it publicly.
+> ⚠️  REVIEW BEFORE SHARING. Secret redaction is best-effort (pattern-based), not a guarantee.
+> ⚠️  Never publish this file or paste it into untrusted services — it contains your source code.
 
 `;
 

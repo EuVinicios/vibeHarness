@@ -84,4 +84,24 @@ describe('scanLGPD', () => {
     );
     expect(hashFindings.length).toBe(0);
   });
+
+  it('skips web-only checks (pages/DSR) when no web surface exists', async () => {
+    // Pure CLI/library project — no UI components, no HTTP routes.
+    await writeFile(join(tmpDir, 'tool.ts'), `export function run() { return 1; }\n`, 'utf8');
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-pages')).toBe(false);
+    expect(result.findings.some((f) => f.category === 'lgpd-dsr')).toBe(false);
+    expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(true);
+  });
+
+  it('runs DSR checks when an HTTP API surface exists', async () => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `const app = express();\napp.post('/api/orders', handler);\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-dsr')).toBe(true);
+    expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(false);
+  });
 });

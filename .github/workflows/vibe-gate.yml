@@ -17,10 +17,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        # actions/checkout@v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        # actions/setup-node@v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '20'
           cache: 'npm'
@@ -35,15 +37,16 @@ jobs:
         id: audit
         # Run the freshly built local CLI directly. Avoid `npx vibe-harness`
         # here: the npm name is taken by a placeholder package, so npx is
-        # ambiguous in this repo. In a consumer project, use `npx vibe-harness`.
+        # ambiguous in this repo. In a consumer project, use `npx @vibeharness/cli`.
         run: |
-          node dist/cli.js audit --report --fail-under 70
+          node dist/cli.js audit --report --fail-under 80
         env:
           NODE_ENV: ci
 
       - name: Upload Audit Report
         if: always()
-        uses: actions/upload-artifact@v4
+        # actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: audit-report
           path: AUDIT_REPORT.md
@@ -51,7 +54,8 @@ jobs:
 
       - name: Post Audit Summary to PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        # actions/github-script@v7.1.0
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           script: |
             const fs = require('fs');

@@ -69,7 +69,7 @@ export async function scanInfra(): Promise<AuditSectionResult> {
       severity: 'medium',
       category: 'infra',
       message: 'No GitHub Actions workflow found — no automated quality gate on PRs',
-      fix: 'Run `vibe-harness init` which creates `.github/workflows/vibe-gate.yml` or add a workflow that runs `vibe-harness audit --fail-under 70`.',
+      fix: 'Run `npx @vibeharness/cli init` which creates `.github/workflows/vibe-gate.yml` or add a workflow that runs `npx @vibeharness/cli audit --fail-under 70`.',
     });
   }
 
