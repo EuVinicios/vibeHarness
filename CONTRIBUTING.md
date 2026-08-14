@@ -43,11 +43,16 @@ npm test         # run the test suite
 
 ## Release Process (maintainers)
 
+> ⚠️ **npm name:** `vibe-harness` on the npm registry is currently occupied by a
+> placeholder `0.0.1` package. Before publishing, move to a scoped name
+> (e.g. `@euvinicios/vibe-harness`) or acquire the name. Update `package.json`
+> `name` accordingly; the `vibe-harness` bin/command can stay unchanged.
+
 1. Update `CHANGELOG.md` (move Unreleased items into the new version).
 2. Bump the version in `package.json` **and** in `src/cli.ts` (`.version(...)`).
 3. Open a PR; after CI passes and review is approved, merge.
 4. Tag the release: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. Publish: `npm publish` (runs `prepublishOnly` → build automatically).
+5. Publish: `npm publish --access public` (runs `prepublishOnly` → build automatically).
 
 ## Code of Conduct
 
