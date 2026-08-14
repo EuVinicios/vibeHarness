@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `vibe-harness prd` command — generates `.vibe/PRD.md` (problem, personas, user stories, acceptance criteria, success metrics, MVP scope).
 - `vibe-harness plan` command — generates `.vibe/STACK.md` with curated stack recommendations (frontend, backend, DB, auth, payments, deploy, MCP servers, AI tools).
-- `vibe-harness doctor` command — dependency freshness, EOL runtimes, deprecated packages; generates `.github/dependabot.yml`.
+- `vibe-harness doctor` command — dependency freshness, EOL runtimes, lockfile & Dependabot checks, plus security-tooling detection (gitleaks / osv-scanner).
 - `init` now installs a Claude Code skill (`.claude/skills/vibeharness/SKILL.md`), slash commands (`/prd`, `/pack`, `/audit`) and `AGENTS.md`.
 - Curated tool registry (`registry/catalog.json`) with weekly auto-sync GitHub Action that opens PRs on changes.
 - Repository hardening: branch protection on `main` (PR + review + CI required), CI workflow, community health files (CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates).

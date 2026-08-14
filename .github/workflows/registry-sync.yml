@@ -1,0 +1,59 @@
+name: Registry Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays at 06:00 UTC
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: 📚 Sync curated registry
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Refresh registry from GitHub API
+        run: node scripts/registry-sync.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Open PR if the catalog changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet registry/catalog.json; then
+            echo "Catalog unchanged — nothing to do."
+            exit 0
+          fi
+
+          BRANCH="registry-sync/$(date +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add registry/catalog.json
+          git commit -m "chore(registry): sync catalog from GitHub API ($(date +%Y-%m-%d))"
+          git push -u origin "$BRANCH" --force
+
+          EXISTING=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists for $BRANCH — updated."
+          else
+            gh pr create \
+              --title "chore(registry): sync catalog $(date +%Y-%m-%d)" \
+              --body "Automated weekly sync of \`registry/catalog.json\` from the GitHub API (stars, license, activity). Review the diff for license changes before merging." \
+              --base main \
+              --head "$BRANCH"
+          fi

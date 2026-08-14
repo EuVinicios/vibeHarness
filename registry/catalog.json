@@ -4,76 +4,622 @@
   "criteria": {
     "minStars": 3000,
     "maxPushAgeDays": 90,
-    "allowedLicenses": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "CC0-1.0", "Unlicense"]
+    "allowedLicenses": [
+      "MIT",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "ISC",
+      "CC0-1.0",
+      "Unlicense"
+    ]
   },
   "categories": {
     "frontend": [
-      { "repo": "vercel/next.js", "name": "Next.js", "stars": 141000, "license": "MIT", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["react", "ssr", "fullstack"], "notes": "Default choice for React fullstack apps; App Router + server actions." },
-      { "repo": "facebook/react", "name": "React", "stars": 235000, "license": "MIT", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["ui", "library"], "notes": "UI library; pair with Next.js, Vite or Astro." },
-      { "repo": "vitejs/vite", "name": "Vite", "stars": 75000, "license": "MIT", "lastPush": "2026-08-10", "lastVerified": "2026-07-01", "tags": ["build", "spa"], "notes": "Fast build tool for SPAs and libraries." },
-      { "repo": "tailwindlabs/tailwindcss", "name": "Tailwind CSS", "stars": 90000, "license": "MIT", "lastPush": "2026-08-08", "lastVerified": "2026-07-01", "tags": ["css", "design"], "notes": "Utility-first CSS; strong AI-codegen affinity." },
-      { "repo": "sveltejs/svelte", "name": "Svelte", "stars": 85000, "license": "MIT", "lastPush": "2026-08-09", "lastVerified": "2026-07-01", "tags": ["ui", "compiler"], "notes": "Compiler-based UI framework; use with SvelteKit." },
-      { "repo": "withastro/astro", "name": "Astro", "stars": 52000, "license": "MIT", "lastPush": "2026-08-11", "lastVerified": "2026-07-01", "tags": ["content", "islands"], "notes": "Best for content-heavy sites and landing pages." }
+      {
+        "repo": "vercel/next.js",
+        "name": "Next.js",
+        "stars": 141789,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "react",
+          "ssr",
+          "fullstack"
+        ],
+        "notes": "Default choice for React fullstack apps; App Router + server actions."
+      },
+      {
+        "repo": "facebook/react",
+        "name": "React",
+        "stars": 247257,
+        "license": "MIT",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "ui",
+          "library"
+        ],
+        "notes": "UI library; pair with Next.js, Vite or Astro."
+      },
+      {
+        "repo": "vitejs/vite",
+        "name": "Vite",
+        "stars": 82352,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "build",
+          "spa"
+        ],
+        "notes": "Fast build tool for SPAs and libraries."
+      },
+      {
+        "repo": "tailwindlabs/tailwindcss",
+        "name": "Tailwind CSS",
+        "stars": 97250,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "css",
+          "design"
+        ],
+        "notes": "Utility-first CSS; strong AI-codegen affinity."
+      },
+      {
+        "repo": "sveltejs/svelte",
+        "name": "Svelte",
+        "stars": 87984,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "ui",
+          "compiler"
+        ],
+        "notes": "Compiler-based UI framework; use with SvelteKit."
+      },
+      {
+        "repo": "withastro/astro",
+        "name": "Astro",
+        "stars": 61772,
+        "license": "NOASSERTION",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "content",
+          "islands"
+        ],
+        "notes": "Best for content-heavy sites and landing pages."
+      }
     ],
     "backend": [
-      { "repo": "expressjs/express", "name": "Express", "stars": 68000, "license": "MIT", "lastPush": "2026-07-20", "lastVerified": "2026-07-01", "tags": ["http", "node"], "notes": "Most-known Node HTTP framework; huge ecosystem." },
-      { "repo": "fastify/fastify", "name": "Fastify", "stars": 34000, "license": "MIT", "lastPush": "2026-08-05", "lastVerified": "2026-07-01", "tags": ["http", "node", "performance"], "notes": "High-performance alternative to Express with schema validation built in." },
-      { "repo": "nestjs/nest", "name": "NestJS", "stars": 72000, "license": "MIT", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["http", "node", "enterprise"], "notes": "Structured, opinionated framework for larger teams." },
-      { "repo": "honojs/hono", "name": "Hono", "stars": 25000, "license": "MIT", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["http", "edge", "serverless"], "notes": "Ultrafast, portable across Workers, Deno, Bun, Node." }
+      {
+        "repo": "expressjs/express",
+        "name": "Express",
+        "stars": 69362,
+        "license": "MIT",
+        "lastPush": "2026-08-01",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "http",
+          "node"
+        ],
+        "notes": "Most-known Node HTTP framework; huge ecosystem."
+      },
+      {
+        "repo": "fastify/fastify",
+        "name": "Fastify",
+        "stars": 36989,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "http",
+          "node",
+          "performance"
+        ],
+        "notes": "High-performance alternative to Express with schema validation built in."
+      },
+      {
+        "repo": "nestjs/nest",
+        "name": "NestJS",
+        "stars": 76374,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "http",
+          "node",
+          "enterprise"
+        ],
+        "notes": "Structured, opinionated framework for larger teams."
+      },
+      {
+        "repo": "honojs/hono",
+        "name": "Hono",
+        "stars": 31664,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "http",
+          "edge",
+          "serverless"
+        ],
+        "notes": "Ultrafast, portable across Workers, Deno, Bun, Node."
+      }
     ],
     "database": [
-      { "repo": "supabase/supabase", "name": "Supabase", "stars": 80000, "license": "Apache-2.0", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["postgres", "baas", "rls"], "notes": "Postgres + Auth + Storage; enable RLS on every table." },
-      { "repo": "prisma/prisma", "name": "Prisma", "stars": 42000, "license": "Apache-2.0", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["orm", "migrations"], "notes": "Typed ORM with versioned migrations." },
-      { "repo": "drizzle-team/drizzle-orm", "name": "Drizzle ORM", "stars": 30000, "license": "Apache-2.0", "lastPush": "2026-08-11", "lastVerified": "2026-07-01", "tags": ["orm", "sql", "edge"], "notes": "SQL-first lightweight ORM; great edge/serverless fit." }
+      {
+        "repo": "supabase/supabase",
+        "name": "Supabase",
+        "stars": 107981,
+        "license": "Apache-2.0",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "postgres",
+          "baas",
+          "rls"
+        ],
+        "notes": "Postgres + Auth + Storage; enable RLS on every table."
+      },
+      {
+        "repo": "prisma/prisma",
+        "name": "Prisma",
+        "stars": 47575,
+        "license": "Apache-2.0",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "orm",
+          "migrations"
+        ],
+        "notes": "Typed ORM with versioned migrations."
+      },
+      {
+        "repo": "drizzle-team/drizzle-orm",
+        "name": "Drizzle ORM",
+        "stars": 35477,
+        "license": "Apache-2.0",
+        "lastPush": "2026-08-12",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "orm",
+          "sql",
+          "edge"
+        ],
+        "notes": "SQL-first lightweight ORM; great edge/serverless fit."
+      }
     ],
     "auth": [
-      { "repo": "nextauthjs/next-auth", "name": "Auth.js (NextAuth)", "stars": 27000, "license": "ISC", "lastPush": "2026-07-28", "lastVerified": "2026-07-01", "tags": ["oauth", "session"], "notes": "Framework-agnostic auth; first-party Next.js integration." },
-      { "repo": "better-auth/better-auth", "name": "Better Auth", "stars": 15000, "license": "MIT", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["oauth", "typescript"], "notes": "Modern TypeScript-first auth framework." }
+      {
+        "repo": "nextauthjs/next-auth",
+        "name": "Auth.js (NextAuth)",
+        "stars": 28324,
+        "license": "ISC",
+        "lastPush": "2026-07-22",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "oauth",
+          "session"
+        ],
+        "notes": "Framework-agnostic auth; first-party Next.js integration."
+      },
+      {
+        "repo": "better-auth/better-auth",
+        "name": "Better Auth",
+        "stars": 29541,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "oauth",
+          "typescript"
+        ],
+        "notes": "Modern TypeScript-first auth framework."
+      }
     ],
     "payments": [
-      { "repo": "stripe/stripe-node", "name": "Stripe Node SDK", "stars": 4600, "license": "MIT", "lastPush": "2026-08-06", "lastVerified": "2026-07-01", "tags": ["payments", "pix-international"], "notes": "Official SDK; always verify webhook signatures and use idempotency keys." }
+      {
+        "repo": "stripe/stripe-node",
+        "name": "Stripe Node SDK",
+        "stars": 4484,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "payments",
+          "pix-international"
+        ],
+        "notes": "Official SDK; always verify webhook signatures and use idempotency keys."
+      }
     ],
     "validation": [
-      { "repo": "colinhacks/zod", "name": "Zod", "stars": 38000, "license": "MIT", "lastPush": "2026-08-10", "lastVerified": "2026-07-01", "tags": ["schema", "typescript"], "notes": "Default schema validation for TypeScript APIs." },
-      { "repo": "fabian-hiller/valibot", "name": "Valibot", "stars": 6000, "license": "MIT", "lastPush": "2026-08-04", "lastVerified": "2026-07-01", "tags": ["schema", "small-bundle"], "notes": "Smaller bundle alternative to Zod." },
-      { "repo": "jquense/yup", "name": "Yup", "stars": 23000, "license": "MIT", "lastPush": "2026-05-15", "lastVerified": "2026-07-01", "tags": ["schema", "forms"], "notes": "Mature option, common in form ecosystems." }
+      {
+        "repo": "colinhacks/zod",
+        "name": "Zod",
+        "stars": 43460,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "schema",
+          "typescript"
+        ],
+        "notes": "Default schema validation for TypeScript APIs."
+      },
+      {
+        "repo": "fabian-hiller/valibot",
+        "name": "Valibot",
+        "stars": 8929,
+        "license": "MIT",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "schema",
+          "small-bundle"
+        ],
+        "notes": "Smaller bundle alternative to Zod."
+      },
+      {
+        "repo": "jquense/yup",
+        "name": "Yup",
+        "stars": 23674,
+        "license": "MIT",
+        "lastPush": "2026-08-12",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "schema",
+          "forms"
+        ],
+        "notes": "Mature option, common in form ecosystems."
+      }
     ],
     "testing": [
-      { "repo": "vitest-dev/vitest", "name": "Vitest", "stars": 16000, "license": "MIT", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["unit", "vite"], "notes": "Default unit test runner for Vite/TS projects." },
-      { "repo": "microsoft/playwright", "name": "Playwright", "stars": 72000, "license": "Apache-2.0", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["e2e", "browser"], "notes": "Default E2E browser testing." },
-      { "repo": "jestjs/jest", "name": "Jest", "stars": 46000, "license": "MIT", "lastPush": "2026-07-22", "lastVerified": "2026-07-01", "tags": ["unit"], "notes": "Mature runner; preferred when the stack already uses it." },
-      { "repo": "testing-library/react-testing-library", "name": "Testing Library", "stars": 20000, "license": "MIT", "lastPush": "2026-06-30", "lastVerified": "2026-07-01", "tags": ["component"], "notes": "User-centric component testing." }
+      {
+        "repo": "vitest-dev/vitest",
+        "name": "Vitest",
+        "stars": 16947,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "unit",
+          "vite"
+        ],
+        "notes": "Default unit test runner for Vite/TS projects."
+      },
+      {
+        "repo": "microsoft/playwright",
+        "name": "Playwright",
+        "stars": 94511,
+        "license": "Apache-2.0",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "e2e",
+          "browser"
+        ],
+        "notes": "Default E2E browser testing."
+      },
+      {
+        "repo": "jestjs/jest",
+        "name": "Jest",
+        "stars": 45470,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "unit"
+        ],
+        "notes": "Mature runner; preferred when the stack already uses it."
+      },
+      {
+        "repo": "testing-library/react-testing-library",
+        "name": "Testing Library",
+        "stars": 19646,
+        "license": "MIT",
+        "lastPush": "2026-04-02",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "component"
+        ],
+        "notes": "User-centric component testing."
+      }
     ],
     "deploy": [
-      { "repo": "coollabsio/coolify", "name": "Coolify", "stars": 25000, "license": "Apache-2.0", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["self-host", "paas"], "notes": "Self-hostable PaaS (Vercel/Heroku alternative)." },
-      { "repo": "dokploy/dokploy", "name": "Dokploy", "stars": 15000, "license": "Apache-2.0", "lastPush": "2026-08-11", "lastVerified": "2026-07-01", "tags": ["self-host", "paas"], "notes": "Lightweight self-hosted PaaS." },
-      { "repo": "caprover/caprover", "name": "CapRover", "stars": 13000, "license": "Apache-2.0", "lastPush": "2026-05-20", "lastVerified": "2026-07-01", "tags": ["self-host", "docker"], "notes": "Docker-based PaaS; slower release cadence." }
+      {
+        "repo": "coollabsio/coolify",
+        "name": "Coolify",
+        "stars": 60558,
+        "license": "Apache-2.0",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "self-host",
+          "paas"
+        ],
+        "notes": "Self-hostable PaaS (Vercel/Heroku alternative)."
+      },
+      {
+        "repo": "dokploy/dokploy",
+        "name": "Dokploy",
+        "stars": 36588,
+        "license": "NOASSERTION",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "self-host",
+          "paas"
+        ],
+        "notes": "Lightweight self-hosted PaaS."
+      },
+      {
+        "repo": "caprover/caprover",
+        "name": "CapRover",
+        "stars": 15128,
+        "license": "NOASSERTION",
+        "lastPush": "2026-08-08",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "self-host",
+          "docker"
+        ],
+        "notes": "Docker-based PaaS; slower release cadence."
+      }
     ],
     "mcp": [
-      { "repo": "modelcontextprotocol/servers", "name": "MCP Reference Servers", "stars": 89559, "license": "NOASSERTION", "lastPush": "2026-08-10", "lastVerified": "2026-08-14", "tags": ["mcp", "reference"], "notes": "Official reference MCP servers (mixed per-server licenses — check each).", "licenseNote": "Mixed licenses per server; verify before vendoring." },
-      { "repo": "modelcontextprotocol/typescript-sdk", "name": "MCP TypeScript SDK", "stars": 8000, "license": "MIT", "lastPush": "2026-08-09", "lastVerified": "2026-07-01", "tags": ["mcp", "sdk"], "notes": "Build custom MCP servers in TypeScript." },
-      { "repo": "github/github-mcp-server", "name": "GitHub MCP Server", "stars": 12000, "license": "MIT", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["mcp", "github"], "notes": "GitHub tools (issues, PRs, repos) for AI agents." }
+      {
+        "repo": "modelcontextprotocol/servers",
+        "name": "MCP Reference Servers",
+        "stars": 89561,
+        "license": "NOASSERTION",
+        "lastPush": "2026-08-10",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "mcp",
+          "reference"
+        ],
+        "notes": "Official reference MCP servers (mixed per-server licenses — check each).",
+        "licenseNote": "Mixed licenses per server; verify before vendoring."
+      },
+      {
+        "repo": "modelcontextprotocol/typescript-sdk",
+        "name": "MCP TypeScript SDK",
+        "stars": 13169,
+        "license": "NOASSERTION",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "mcp",
+          "sdk"
+        ],
+        "notes": "Build custom MCP servers in TypeScript."
+      },
+      {
+        "repo": "github/github-mcp-server",
+        "name": "GitHub MCP Server",
+        "stars": 32241,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "mcp",
+          "github"
+        ],
+        "notes": "GitHub tools (issues, PRs, repos) for AI agents."
+      }
     ],
     "ai-tools": [
-      { "repo": "obra/superpowers", "name": "Superpowers", "stars": 271981, "license": "MIT", "lastPush": "2026-08-13", "lastVerified": "2026-08-14", "tags": ["skills", "workflow"], "notes": "Battle-tested skills: brainstorm → plan → implement with TDD." },
-      { "repo": "anthropics/skills", "name": "Anthropic Skills", "stars": 169340, "license": "none", "lastPush": "2026-08-13", "lastVerified": "2026-08-14", "tags": ["skills", "reference"], "notes": "Official skills examples; check license per skill before reuse.", "licenseNote": "No repo-level license — treat as reference only." },
-      { "repo": "github/spec-kit", "name": "GitHub Spec Kit", "stars": 127900, "license": "MIT", "lastPush": "2026-08-13", "lastVerified": "2026-08-14", "tags": ["spec-driven", "methodology"], "notes": "Spec-driven development toolkit; methodology reference for VibeHarness." },
-      { "repo": "Fission-AI/OpenSpec", "name": "OpenSpec", "stars": 64857, "license": "MIT", "lastPush": "2026-08-13", "lastVerified": "2026-08-14", "tags": ["spec-driven"], "notes": "Spec-first change workflow for AI coding." },
-      { "repo": "bmad-code-org/BMAD-METHOD", "name": "BMAD Method", "stars": 51891, "license": "NOASSERTION", "lastPush": "2026-08-14", "lastVerified": "2026-08-14", "tags": ["agents", "prd"], "notes": "Agentic agile framework with PRD-driven workflow.", "licenseNote": "Custom license — review before vendoring." },
-      { "repo": "yamadashy/repomix", "name": "Repomix", "stars": 27830, "license": "MIT", "lastPush": "2026-08-11", "lastVerified": "2026-08-14", "tags": ["context", "packing"], "notes": "Reference implementation for context packing (inspired vibe-harness pack)." },
-      { "repo": "anthropics/claude-code", "name": "Claude Code", "stars": 141426, "license": "none", "lastPush": "2026-08-13", "lastVerified": "2026-08-14", "tags": ["agent", "cli"], "notes": "Anthropic's coding agent (proprietary CLI; repo for issues/examples).", "licenseNote": "Proprietary — tool usage, not code reuse." },
-      { "repo": "BuilderMethods/agent-os", "name": "Agent OS", "stars": 5267, "license": "MIT", "lastPush": "2026-05-05", "lastVerified": "2026-08-14", "tags": ["standards", "specs"], "notes": "Reusable standards/specs/roadmap layers for AI projects." },
-      { "repo": "PatrickJS/awesome-cursorrules", "name": "Awesome Cursor Rules", "stars": 40586, "license": "CC0-1.0", "lastPush": "2026-05-30", "lastVerified": "2026-08-14", "tags": ["rules", "collection"], "notes": "Community rule collection; mine for language-specific guardrails." }
+      {
+        "repo": "obra/superpowers",
+        "name": "Superpowers",
+        "stars": 272010,
+        "license": "MIT",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "skills",
+          "workflow"
+        ],
+        "notes": "Battle-tested skills: brainstorm → plan → implement with TDD."
+      },
+      {
+        "repo": "anthropics/skills",
+        "name": "Anthropic Skills",
+        "stars": 169352,
+        "license": "none",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "skills",
+          "reference"
+        ],
+        "notes": "Official skills examples; check license per skill before reuse.",
+        "licenseNote": "No repo-level license — treat as reference only."
+      },
+      {
+        "repo": "github/spec-kit",
+        "name": "GitHub Spec Kit",
+        "stars": 127996,
+        "license": "MIT",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "spec-driven",
+          "methodology"
+        ],
+        "notes": "Spec-driven development toolkit; methodology reference for VibeHarness."
+      },
+      {
+        "repo": "Fission-AI/OpenSpec",
+        "name": "OpenSpec",
+        "stars": 64865,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "spec-driven"
+        ],
+        "notes": "Spec-first change workflow for AI coding."
+      },
+      {
+        "repo": "bmad-code-org/BMAD-METHOD",
+        "name": "BMAD Method",
+        "stars": 51895,
+        "license": "NOASSERTION",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "agents",
+          "prd"
+        ],
+        "notes": "Agentic agile framework with PRD-driven workflow.",
+        "licenseNote": "Custom license — review before vendoring."
+      },
+      {
+        "repo": "yamadashy/repomix",
+        "name": "Repomix",
+        "stars": 27831,
+        "license": "MIT",
+        "lastPush": "2026-08-11",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "context",
+          "packing"
+        ],
+        "notes": "Reference implementation for context packing (inspired vibe-harness pack)."
+      },
+      {
+        "repo": "anthropics/claude-code",
+        "name": "Claude Code",
+        "stars": 141429,
+        "license": "none",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "agent",
+          "cli"
+        ],
+        "notes": "Anthropic's coding agent (proprietary CLI; repo for issues/examples).",
+        "licenseNote": "Proprietary — tool usage, not code reuse."
+      },
+      {
+        "repo": "BuilderMethods/agent-os",
+        "name": "Agent OS",
+        "stars": 5267,
+        "license": "MIT",
+        "lastPush": "2026-05-05",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "standards",
+          "specs"
+        ],
+        "notes": "Reusable standards/specs/roadmap layers for AI projects."
+      },
+      {
+        "repo": "PatrickJS/awesome-cursorrules",
+        "name": "Awesome Cursor Rules",
+        "stars": 40586,
+        "license": "CC0-1.0",
+        "lastPush": "2026-05-30",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "rules",
+          "collection"
+        ],
+        "notes": "Community rule collection; mine for language-specific guardrails."
+      }
     ],
     "security": [
-      { "repo": "gitleaks/gitleaks", "name": "Gitleaks", "stars": 28707, "license": "MIT", "lastPush": "2026-07-29", "lastVerified": "2026-08-14", "tags": ["secrets", "pre-commit"], "notes": "Reference secret scanner; pattern source for vibe-harness." },
-      { "repo": "google/osv-scanner", "name": "OSV-Scanner", "stars": 10827, "license": "Apache-2.0", "lastPush": "2026-08-14", "lastVerified": "2026-08-14", "tags": ["cve", "lockfile"], "notes": "Multi-ecosystem CVE scanning via OSV.dev." },
-      { "repo": "trufflesecurity/trufflehog", "name": "TruffleHog", "stars": 20000, "license": "AGPL-3.0", "lastPush": "2026-08-12", "lastVerified": "2026-07-01", "tags": ["secrets", "verification"], "notes": "Verified secret detection including git history.", "licenseNote": "AGPL-3.0 — safe as standalone CLI, do not vendor code." },
-      { "repo": "semgrep/semgrep", "name": "Semgrep", "stars": 12000, "license": "LGPL-2.1", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["sast"], "notes": "Fast SAST with community rule packs.", "licenseNote": "LGPL-2.1 — safe as standalone CLI." }
+      {
+        "repo": "gitleaks/gitleaks",
+        "name": "Gitleaks",
+        "stars": 28710,
+        "license": "MIT",
+        "lastPush": "2026-07-29",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "secrets",
+          "pre-commit"
+        ],
+        "notes": "Reference secret scanner; pattern source for vibe-harness."
+      },
+      {
+        "repo": "google/osv-scanner",
+        "name": "OSV-Scanner",
+        "stars": 10828,
+        "license": "Apache-2.0",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "cve",
+          "lockfile"
+        ],
+        "notes": "Multi-ecosystem CVE scanning via OSV.dev."
+      },
+      {
+        "repo": "trufflesecurity/trufflehog",
+        "name": "TruffleHog",
+        "stars": 27455,
+        "license": "AGPL-3.0",
+        "lastPush": "2026-08-13",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "secrets",
+          "verification"
+        ],
+        "notes": "Verified secret detection including git history.",
+        "licenseNote": "AGPL-3.0 — safe as standalone CLI, do not vendor code."
+      },
+      {
+        "repo": "semgrep/semgrep",
+        "name": "Semgrep",
+        "stars": 16216,
+        "license": "LGPL-2.1",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "sast"
+        ],
+        "notes": "Fast SAST with community rule packs.",
+        "licenseNote": "LGPL-2.1 — safe as standalone CLI."
+      }
     ],
     "maintenance": [
-      { "repo": "renovatebot/renovate", "name": "Renovate", "stars": 22261, "license": "AGPL-3.0", "lastPush": "2026-08-14", "lastVerified": "2026-08-14", "tags": ["dependencies", "automation"], "notes": "Automated dependency updates; use as hosted app, not vendored code.", "licenseNote": "AGPL-3.0 — fine as a service/CLI." },
-      { "repo": "dependabot/dependabot-core", "name": "Dependabot Core", "stars": 4700, "license": "other", "lastPush": "2026-08-13", "lastVerified": "2026-07-01", "tags": ["dependencies", "automation"], "notes": "Engine behind GitHub Dependabot; prefer the built-in GitHub feature.", "licenseNote": "Non-standard license — use via GitHub Dependabot instead." }
+      {
+        "repo": "renovatebot/renovate",
+        "name": "Renovate",
+        "stars": 22261,
+        "license": "AGPL-3.0",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "dependencies",
+          "automation"
+        ],
+        "notes": "Automated dependency updates; use as hosted app, not vendored code.",
+        "licenseNote": "AGPL-3.0 — fine as a service/CLI."
+      },
+      {
+        "repo": "dependabot/dependabot-core",
+        "name": "Dependabot Core",
+        "stars": 5721,
+        "license": "MIT",
+        "lastPush": "2026-08-14",
+        "lastVerified": "2026-08-14",
+        "tags": [
+          "dependencies",
+          "automation"
+        ],
+        "notes": "Engine behind GitHub Dependabot; prefer the built-in GitHub feature.",
+        "licenseNote": "Non-standard license — use via GitHub Dependabot instead."
+      }
     ]
   }
 }
