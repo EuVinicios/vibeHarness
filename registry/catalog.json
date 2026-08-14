@@ -33,7 +33,7 @@
       {
         "repo": "facebook/react",
         "name": "React",
-        "stars": 247257,
+        "stars": 247256,
         "license": "MIT",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -72,7 +72,7 @@
       {
         "repo": "sveltejs/svelte",
         "name": "Svelte",
-        "stars": 87984,
+        "stars": 87983,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -127,7 +127,7 @@
       {
         "repo": "nestjs/nest",
         "name": "NestJS",
-        "stars": 76374,
+        "stars": 76373,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -141,7 +141,7 @@
       {
         "repo": "honojs/hono",
         "name": "Hono",
-        "stars": 31664,
+        "stars": 31663,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -243,7 +243,7 @@
       {
         "repo": "colinhacks/zod",
         "name": "Zod",
-        "stars": 43460,
+        "stars": 43461,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -419,7 +419,7 @@
       {
         "repo": "obra/superpowers",
         "name": "Superpowers",
-        "stars": 272010,
+        "stars": 272015,
         "license": "MIT",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -432,7 +432,7 @@
       {
         "repo": "anthropics/skills",
         "name": "Anthropic Skills",
-        "stars": 169352,
+        "stars": 169354,
         "license": "none",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -446,7 +446,7 @@
       {
         "repo": "github/spec-kit",
         "name": "GitHub Spec Kit",
-        "stars": 127996,
+        "stars": 128001,
         "license": "MIT",
         "lastPush": "2026-08-13",
         "lastVerified": "2026-08-14",
@@ -459,7 +459,7 @@
       {
         "repo": "Fission-AI/OpenSpec",
         "name": "OpenSpec",
-        "stars": 64865,
+        "stars": 64868,
         "license": "MIT",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
@@ -485,7 +485,7 @@
       {
         "repo": "yamadashy/repomix",
         "name": "Repomix",
-        "stars": 27831,
+        "stars": 27832,
         "license": "MIT",
         "lastPush": "2026-08-11",
         "lastVerified": "2026-08-14",
@@ -580,7 +580,7 @@
       {
         "repo": "semgrep/semgrep",
         "name": "Semgrep",
-        "stars": 16216,
+        "stars": 16217,
         "license": "LGPL-2.1",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
