@@ -10,8 +10,12 @@ export interface StackPlanInput {
   detectedStack: string[];
 }
 
-function entryLine(entry: CatalogEntry, primary: boolean): string {
-  const licenseFlag = entry.licenseNote ? ` — ⚠️ ${entry.licenseNote}` : '';
+function entryLine(entry: CatalogEntry, primary: boolean, licenseAllowed: boolean): string {
+  const licenseFlag = entry.licenseNote
+    ? ` — ⚠️ ${entry.licenseNote}`
+    : !licenseAllowed
+      ? ' — ⚠️ license needs review'
+      : '';
   const tag = primary ? '**→ primary**' : 'alternative';
   const notes = entry.notes ? ` — ${entry.notes}` : '';
   return `- [${tag}] [${entry.name}](https://github.com/${entry.repo}) (⭐ ${entry.stars.toLocaleString('en-US')}, ${entry.license})${notes}${licenseFlag}`;
@@ -27,10 +31,7 @@ function categorySection(
   if (top.length === 0) return '';
   const lines = [`### ${title}`, '', `_${why}_`, ''];
   top.forEach((entry, i) => {
-    if (!isLicenseAllowed(catalog, entry) && !entry.licenseNote) {
-      return;
-    }
-    lines.push(entryLine(entry, i === 0));
+    lines.push(entryLine(entry, i === 0, isLicenseAllowed(catalog, entry)));
   });
   return lines.join('\n') + '\n';
 }

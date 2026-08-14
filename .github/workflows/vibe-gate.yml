@@ -33,8 +33,11 @@ jobs:
 
       - name: Run VibeHarness Audit
         id: audit
+        # Run the freshly built local CLI directly. Avoid `npx vibe-harness`
+        # here: the npm name is taken by a placeholder package, so npx is
+        # ambiguous in this repo. In a consumer project, use `npx vibe-harness`.
         run: |
-          npx vibe-harness audit --report --fail-under 70
+          node dist/cli.js audit --report --fail-under 70
         env:
           NODE_ENV: ci
 

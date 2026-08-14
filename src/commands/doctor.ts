@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { banner, projectRoot, writeFileSafe } from '../utils/fs.js';
 import { dependabotTemplate } from '../generators/dependabot.js';
 import { NODE_EOL, nodeEolStatus } from '../utils/node-eol.js';
+import { checkSecurityTooling } from '../utils/tooling.js';
 
 const execAsync = promisify(exec);
 
@@ -109,6 +110,19 @@ export async function doctorCommand(opts: DoctorOptions): Promise<void> {
   } else {
     issues++;
     console.log(chalk.yellow('  ⚠  No Dependabot config. Run `vibe-harness doctor --fix` to generate one.'));
+  }
+
+  // 5. Security tooling (advisory — not counted as an issue)
+  const tooling = await checkSecurityTooling();
+  console.log('');
+  console.log(chalk.bold('  Security tooling (recommended):'));
+  for (const { tool, installed } of tooling) {
+    if (installed) {
+      console.log(chalk.green(`    ✔  ${tool.name} installed — ${tool.purpose}`));
+    } else {
+      console.log(chalk.dim(`    ·  ${tool.name} not found — ${tool.purpose}`));
+      console.log(chalk.dim(`       install: ${tool.install}`));
+    }
   }
 
   console.log('');
