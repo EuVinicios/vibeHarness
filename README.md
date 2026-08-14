@@ -215,6 +215,12 @@ The dedicated LGPD scanner checks:
 
 A weekly GitHub Action (`.github/workflows/registry-sync.yml`) refreshes stars/licenses/activity from the GitHub API and **opens a PR automatically** when data changes. `vibe-harness plan` uses the local snapshot (no network at runtime) and warns when it is older than 30 days.
 
+> **Operations note:** the sync only writes the catalog (and opens a PR) when at least one
+> star/license/activity value actually changed, so quiet weeks produce no noise. Because the
+> PR is opened by `github-actions[bot]`, GitHub may hold its CI for a one-time maintainer
+> approval ("first-time contributor" gate). For fully hands-off operation, run the workflow
+> with a bot PAT secret instead of `GITHUB_TOKEN`.
+
 ---
 
 ## 🤖 CI/CD Integration
