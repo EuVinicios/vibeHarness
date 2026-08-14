@@ -10,9 +10,10 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 
 | Phase | Command | What it does |
 |-------|---------|--------------|
+| 🧭 Any | `vibe-harness start` | **Guided entry point** — one question about your project stage, then it recommends and runs the next steps |
 | 🟢 Before coding | `vibe-harness prd` | Generates the Product Requirements Document (`.vibe/PRD.md`) |
 | 🟢 Before coding | `vibe-harness init` | Generates spec, LGPD policy, AI rules, agent skill, installs pre-commit hook |
-| 🟢 Before coding | `vibe-harness plan` | Curated stack recommendation from the community registry (`.vibe/STACK.md`) |
+| 🟢 Before coding | `vibe-harness plan --apply` | Curated stack recommendation — **installs the dependencies and generates the configs for you** |
 | 🟡 During coding | `vibe-harness pack` | Sanitises context for your AI assistant (removes secrets) |
 | 🔴 After coding | `vibe-harness audit` | Runs production-readiness audit with a 0–100 scorecard |
 | 🔁 Maintenance | `vibe-harness doctor` | EOL runtimes, outdated deps, lockfile & Dependabot checks |
@@ -22,22 +23,15 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 ## 🚀 Quick Start
 
 ```bash
-# One-time setup in your project
-npx @vibeharness/cli init
+# Don't know where to start? One command, one question:
+npx @vibeharness/cli start
 
-# Write the product requirements
-npx @vibeharness/cli prd
-
-# Get a curated stack recommendation (frontend, backend, DB, auth, MCPs…)
-npx @vibeharness/cli plan
-
-# Before prompting your AI — build a clean context file
-npx @vibeharness/cli pack
-
-# Before shipping — run the full audit
+# Or drive each phase yourself:
+npx @vibeharness/cli init        # foundation: spec, rules, hooks
+npx @vibeharness/cli prd         # product requirements
+npx @vibeharness/cli plan --apply # curated stack, installed + configured
+npx @vibeharness/cli pack        # clean context for your AI
 npx @vibeharness/cli audit --report
-
-# Keep the project fresh — dependency & runtime maintenance
 npx @vibeharness/cli doctor --fix
 ```
 
@@ -45,6 +39,28 @@ npx @vibeharness/cli doctor --fix
 > The unscoped `vibe-harness` name on npm belongs to an unrelated third-party
 > placeholder — always use the scoped form above (the installed binary is still
 > `vibe-harness`).
+
+---
+
+## 🧭 `vibe-harness start` — guided entry point
+
+The abstraction built for vibecoders: **one question, full guidance**.
+
+`start` auto-detects the project state (which `.vibe/` artifacts exist, audit
+report, Dependabot, pre-commit hook…) and asks a single question — *where is
+your project right now?* (idea / starting / building / shipping / production).
+
+Then it shows the full map of what VibeHarness can do, marks what is already
+done (✔), what is pending (○) and the recommended next step (★), and runs each
+step with your confirmation until the lifecycle is complete.
+
+```bash
+vibe-harness start          # guided, one question
+vibe-harness start --yes    # infer the stage and run the recommended step
+```
+
+Inside Claude Code, the same flow is available as the `/start` slash command
+(installed by `init`).
 
 ---
 
@@ -109,13 +125,13 @@ vibe-harness init --yes    # Non-interactive, safe defaults
 VibeHarness is a **CLI first**: the commands work anywhere (terminal, CI, any AI tool).
 `init` additionally installs a **skill layer** so AI agents can drive the CLI natively:
 
-- **Claude Code** gets a skill (`.claude/skills/vibeharness/SKILL.md`) and slash commands (`/prd`, `/plan`, `/pack`, `/audit`, `/doctor`).
+- **Claude Code** gets a skill (`.claude/skills/vibeharness/SKILL.md`) and slash commands (`/start`, `/prd`, `/plan`, `/pack`, `/audit`, `/doctor`).
 - **opencode / Codex / friends** read `AGENTS.md`.
 - The skill **invokes the CLI** — zero duplicated logic, one source of truth.
 
 ---
 
-## 🟢 Phase 1 — `vibe-harness plan`
+## 🟢 Phase 1 — `vibe-harness plan` (+ `--apply`)
 
 Answers the question every vibecoder faces: **"which stack should I use?"**
 
@@ -126,9 +142,22 @@ Answers the question every vibecoder faces: **"which stack should I use?"**
 - Testing, Deployment, MCP servers, AI dev tools
 - Security tooling and dependency maintenance (Dependabot/Renovate)
 
+### `--apply`: the tool does it for you
+
+VibeHarness is not a directory of links. With `--apply`, the CLI **executes**
+the recommendation:
+
+- **Installs** the primary dependencies with your package manager (npm/yarn/pnpm/bun, auto-detected)
+- **Generates initial configs** — validation schemas, test runner, DB migrations, `.env.example`
+- **Writes starter code** into `.vibe/starters/` for you (or your AI) to wire in — **never edits `src/`**
+- **Configures MCP servers** (`.mcp.json`) for your AI agent
+- **Offers system security tools** (gitleaks, osv-scanner via Homebrew — explicit consent only)
+- **Records an audit trail** of everything applied at the end of `STACK.md`
+
 ```bash
 vibe-harness plan                          # Interactive project-type selection
-vibe-harness plan --type saas              # fullstack-web | api | landing | saas
+vibe-harness plan --apply                  # + install & configure the stack
+vibe-harness plan --type saas --apply      # fullstack-web | api | landing | saas
 vibe-harness plan --yes --force            # Non-interactive, overwrite
 ```
 
@@ -191,6 +220,12 @@ not flagged for missing cookie banners.
 
 ### AUDIT_REPORT.md
 Each finding includes an **AI Fix Prompt** you can paste directly into Cursor, Claude, or Copilot to fix the issue. A Batch AI Fix Prompt at the end covers all critical/high findings in one shot.
+
+### Visual report
+`vibe-harness audit --site` (or accepting the prompt after `--report`) also
+generates **`.vibe/report/index.html`** — a self-contained, Material-style
+scorecard site you can open in any browser and commit as documentation:
+score ring, per-section cards, findings by severity and copyable fix prompts.
 
 > **Prompt-injection safety:** file names and code content flow into the report, so
 > every finding field is sanitised (backticks, `${}`, control chars, length) and the
@@ -261,21 +296,38 @@ with all actions pinned by commit SHA.
 
 ---
 
+## 📖 Documentation (visual guide)
+
+For a clean, visual guide in **Brazilian Portuguese** — installation, the
+stage-by-stage playbook, every command, and the security/LGPD checklist — see
+the docs site:
+
+**👉 [euvinicios.github.io/vibeHarness](https://euvinicios.github.io/vibeHarness/)**
+
+Built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/),
+deployed automatically to GitHub Pages on every change to `docs/`.
+
+---
+
 ## 🏗️ Repository Structure
 
 ```
 src/
 ├── cli.ts                    ← CLI entry point (commander)
 ├── commands/
+│   ├── start.ts              ← Guided entry point (one question → recommended steps)
 │   ├── prd.ts                ← Phase 1: PRD generator command
 │   ├── init.ts               ← Phase 1: spec, LGPD policy, AI rules, skill, pre-commit hook
-│   ├── plan.ts               ← Phase 1: curated stack recommendation
+│   ├── plan.ts               ← Phase 1: curated stack recommendation + --apply
 │   ├── pack.ts               ← Phase 2: context packager command
 │   ├── audit.ts              ← Phase 3: TUI scorecard + report
 │   ├── doctor.ts             ← Maintenance: EOL/outdated/Dependabot
 │   └── rules.ts              ← Standalone AI rules generator
 ├── core/
 │   ├── orchestrator.ts       ← Runs all scanners, calculates aggregate score
+│   ├── stage.ts              ← Project state detection & stage recommendations
+│   ├── apply.ts              ← Apply engine: installs deps, writes configs/starters
+│   ├── recipes.ts            ← Per-registry-entry apply recipes (never touches src/)
 │   └── types.ts              ← Shared TypeScript types (Finding, AuditReport…)
 ├── scanners/
 │   ├── security.ts           ← Secrets & CVE scanning
@@ -311,10 +363,13 @@ tests/
 ├── templates.test.ts         ← Generator template tests
 ├── prd.test.ts               ← PRD template tests
 ├── plan.test.ts              ← Registry & stack plan tests
+├── stage.test.ts             ← Stage detection & recommendation tests
+├── apply.test.ts             ← Apply engine & recipe invariant tests
 ├── doctor.test.ts            ← Node EOL & Dependabot tests
 ├── audit.test.ts             ← Core audit engine tests
 ├── security.test.ts          ← Secret patterns & insecure-code checks
 ├── report.test.ts            ← Report sanitisation / prompt-injection defence
+├── site.test.ts              ← Visual report (self-containment, XSS escaping)
 ├── skill.test.ts             ← Skill, slash commands, AGENTS.md (scoped invocations)
 ├── lgpd.test.ts              ← LGPD scanner tests
 └── packager.test.ts          ← Context packager tests (PEM, env, YAML redaction)
@@ -327,7 +382,10 @@ tests/
 ```bash
 npm install
 npm run build    # Compile TypeScript → dist/
-npm test         # Run 73 tests across 12 suites
+npm test         # Run 105 tests across 15 suites
+
+# Docs site preview (requires Python or uv):
+uvx --with mkdocs-material mkdocs serve
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the contribution workflow (PR-only, protected `main`) and [SECURITY.md](./SECURITY.md) for vulnerability reporting.

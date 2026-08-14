@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-14 — "From pointers to harness"
+
+The tool stops *pointing* at what you should do and starts *doing* it.
+
+### Added
+- **`vibe-harness start`** — guided entry point for vibecoders. Auto-detects
+  project state, asks ONE question (project stage: idea / starting / building /
+  shipping / production), shows the full map of what VibeHarness can do
+  (done ✔ / pending ○ / recommended ★) and runs each recommended step with
+  confirmation until the lifecycle completes. `--yes` infers the stage and runs
+  non-interactively. Available as the `/start` slash command in Claude Code.
+- **`vibe-harness plan --apply`** — the curated registry is now executed, not
+  just listed. Apply installs the primary dependencies with your detected
+  package manager (npm/yarn/pnpm/bun), generates initial configs and
+  `.env.example`, writes starter code into `.vibe/starters/`, configures MCP
+  servers (`.mcp.json`), installs the security CI gate, and offers system
+  security tools (gitleaks/osv-scanner via Homebrew, explicit consent only).
+  Every applied step is recorded in an audit trail appended to `.vibe/STACK.md`.
+- **Apply recipes (v1)** — validation (Zod/Valibot/Yup), testing (Vitest/Jest/
+  Playwright), database (Supabase/Prisma/Drizzle), auth (Better Auth/Auth.js),
+  payments (Stripe, with signature-verified webhook starter), security
+  (gitleaks/osv-scanner), MCP and deploy guidance. Entries without a recipe
+  degrade gracefully to a recommendation.
+- **Visual audit report** — `audit --site` (or the consent prompt after
+  `--report`) generates `.vibe/report/index.html`: a self-contained,
+  Material-style scorecard site — score ring, section cards, findings by
+  severity, copyable AI fix prompts and the batch prompt. Zero dependencies
+  (no Python/mkdocs at runtime); versionable as project documentation.
+  All finding content is sanitised and HTML-escaped (XSS + injection safe).
+- **Docs site** — visual documentation in PT-BR built with Material for MkDocs
+  (`docs/` + `mkdocs.yml`), deployed to GitHub Pages on every change
+  (`.github/workflows/docs.yml`). Entry point: installation & first run.
+
+### Invariants
+- `plan --apply` never writes inside `src/` — enforced structurally by a path
+  allow-list in the apply engine and covered by tests (configs at the root and
+  `.vibe/**` only).
+
+### Changed
+- `init` now also installs the `/start` slash command (6 commands total).
+- SKILL.md and AGENTS.md present `start` as the entry point when the user is
+  unsure what to do next; `plan` guidance updated to `--apply`.
+- STACK.md "Next Steps" leads with `plan --apply`.
+
+### Tests
+- 28 new tests (105 total across 15 suites): stage detection & ordering,
+  stage inference heuristic, apply-plan resolution, recipe path invariant,
+  apply execution (files/env/no-src), apply audit trail, visual report
+  rendering (self-containment, XSS/injection escaping).
+
 ## [0.4.1] - 2026-08-14
 
 ### Fixed

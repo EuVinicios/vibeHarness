@@ -11,6 +11,7 @@ import { auditCommand } from './commands/audit.js';
 import { prdCommand } from './commands/prd.js';
 import { planCommand } from './commands/plan.js';
 import { doctorCommand } from './commands/doctor.js';
+import { startCommand } from './commands/start.js';
 
 // Single source of truth: version comes from package.json — never hardcode it
 // here again (v0.4.0 shipped reporting 0.3.0 because of a hardcoded string).
@@ -36,6 +37,14 @@ program
   .version(cliVersion);
 
 program
+  .command('start')
+  .description(
+    'Guided entry point — one question about your project stage, then VibeHarness recommends and runs the next steps'
+  )
+  .option('--yes', 'Skip prompts: infer the stage and run the recommended step with defaults')
+  .action(startCommand);
+
+program
   .command('init')
   .description(
     'Phase 1 — Initialise spec, LGPD policy, AI rules, agent skill, and install pre-commit hook'
@@ -58,6 +67,7 @@ program
   .option('--yes', 'Skip interactive prompts and use defaults')
   .option('--force', 'Overwrite an existing .vibe/STACK.md')
   .option('--type <type>', 'Project type: fullstack-web, api, landing, saas')
+  .option('--apply', 'Install the recommended dependencies and generate the initial configs (never touches src/)')
   .action(planCommand);
 
 program
@@ -88,6 +98,8 @@ program
     'Phase 3 — Run production-readiness audit: Security, LGPD, Dead Code, Infra, A11y'
   )
   .option('--report', 'Write AUDIT_REPORT.md with AI fix prompts')
+  .option('--site', 'Also write the visual report (.vibe/report/index.html)')
+  .option('--yes', 'Skip prompts (visual report only with --site)')
   .option('--fail-under <score>', 'Exit with code 1 if score is below N', '70')
   .action(auditCommand);
 

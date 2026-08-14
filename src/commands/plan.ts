@@ -6,11 +6,19 @@ import { readFile } from 'node:fs/promises';
 import { banner, writeFileSafe, detectStack, projectRoot, getProjectName } from '../utils/fs.js';
 import { loadCatalog, isCatalogStale, catalogViolations } from '../registry/index.js';
 import { stackPlanTemplate, type StackPlanInput } from '../generators/stack-plan.js';
+import {
+  buildApplyPlan,
+  executeApplyPlan,
+  readInstalledDeps,
+  renderApplyPlan,
+  appendApplyTrail,
+} from '../core/apply.js';
 
 interface PlanOptions {
   yes?: boolean;
   force?: boolean;
   type?: string;
+  apply?: boolean;
 }
 
 const PROJECT_TYPES = ['fullstack-web', 'api', 'landing', 'saas'] as const;
@@ -113,15 +121,69 @@ export async function planCommand(opts: PlanOptions): Promise<void> {
   };
 
   const vibeDir = join(projectRoot(), '.vibe');
-  const written = await writeFileSafe(join(vibeDir, 'STACK.md'), stackPlanTemplate(input), opts.force);
+  const stackPath = join(vibeDir, 'STACK.md');
+  const written = await writeFileSafe(stackPath, stackPlanTemplate(input), opts.force);
 
-  if (written) {
+  if (written && !opts.apply) {
     console.log(chalk.dim([
       '',
       '  Next steps:',
       '    1. Review .vibe/STACK.md and confirm each primary choice',
-      '    2. Copy accepted decisions into .vibe/SPEC.md (section 4)',
-      '    3. npx @vibeharness/cli doctor --fix → install Dependabot',
+      '    2. Or let VibeHarness do it: npx @vibeharness/cli plan --apply',
+      '    3. Copy accepted decisions into .vibe/SPEC.md (section 4)',
+      '    4. npx @vibeharness/cli doctor --fix → install Dependabot',
     ].join('\n') + '\n'));
+    return;
   }
+
+  if (!opts.apply) return;
+
+  // ---- Apply: install + configure the curated stack (never touches src/) ----
+  console.log('\n' + chalk.bold('🔧  Applying the recommended stack…\n'));
+
+  const applyPlan = buildApplyPlan(catalog, {
+    projectType,
+    hasAuth: threatModel?.hasAuth ?? true,
+    hasPayments: threatModel?.hasPayments ?? false,
+    installedDeps: readInstalledDeps(),
+  });
+
+  if (applyPlan.items.length === 0) {
+    console.log(chalk.dim('  Nothing to apply — everything is already installed or recommendation-only.'));
+    for (const line of renderApplyPlan(applyPlan)) console.log(line);
+    return;
+  }
+
+  console.log('  Apply plan:');
+  for (const line of renderApplyPlan(applyPlan)) console.log(line);
+  console.log(chalk.dim('\n  Installs dependencies, writes configs/starters. Never edits src/.\n'));
+
+  let go = true;
+  if (!opts.yes) {
+    try {
+      const { prompt } = await import('enquirer');
+      const answer = await prompt<{ go: boolean }>({
+        type: 'confirm',
+        name: 'go',
+        message: 'Apply this plan now?',
+        initial: true,
+      } as Parameters<typeof prompt>[0]);
+      go = answer.go;
+    } catch {
+      go = false;
+    }
+  }
+  if (!go) {
+    console.log(chalk.dim('  Skipped — run again with `npx @vibeharness/cli plan --apply` when ready.\n'));
+    return;
+  }
+
+  const result = await executeApplyPlan(applyPlan, { yes: opts.yes, projectName });
+
+  if (written || existsSync(stackPath)) {
+    await appendApplyTrail(stackPath, result);
+    console.log(chalk.green('  ✔  Apply trail appended to .vibe/STACK.md'));
+  }
+
+  console.log(chalk.bold.green('\n✅  Stack applied. Review .vibe/starters/ and wire the starters into your app.\n'));
 }
