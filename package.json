@@ -1,0 +1,74 @@
+{
+  "name": "vibe-harness",
+  "version": "0.2.0",
+  "description": "All-in-one production harness for vibecoding — spec, AI rules, and audit in a single CLI",
+  "type": "module",
+  "bin": {
+    "vibe-harness": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node --esm src/cli.ts",
+    "lint": "eslint src --ext .ts",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --passWithNoTests",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vibecoding",
+    "ai",
+    "cli",
+    "harness",
+    "audit",
+    "security",
+    "cursor",
+    "claude",
+    "copilot"
+  ],
+  "author": "VibeHarness Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "enquirer": "^2.4.1",
+    "fast-glob": "^3.3.2",
+    "ora": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^22.5.4",
+    "@types/semver": "^7.5.8",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest/presets/default-esm",
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.ts"
+    ],
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "transform": {
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "useESM": true,
+          "diagnostics": {
+            "ignoreCodes": [
+              151002
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
