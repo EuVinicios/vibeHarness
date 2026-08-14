@@ -1,5 +1,8 @@
 # Security gate for @vibeharness/cli — installed by vibe-harness.
-# Secret scanning (gitleaks) + dependency CVEs (npm audit, osv-scanner) + audit score gate.
+# Secret scanning (gitleaks) + dependency CVEs (npm audit).
+# NOTE (repo-specific): the generated template also ships a vibe-audit job;
+# this repo runs the audit from the local build with a higher bar in
+# vibe-gate.yml (--fail-under 80), so that job is trimmed here.
 # Actions are pinned by commit SHA on purpose — update them deliberately.
 name: Security
 
@@ -39,11 +42,3 @@ jobs:
           fi
           npm audit --audit-level=high
 
-  vibe-audit:
-    name: 🛡️ VibeHarness audit (score ≥ 70)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Run VibeHarness audit
-        run: npx @vibeharness/cli audit --fail-under 70

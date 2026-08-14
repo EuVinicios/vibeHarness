@@ -37,6 +37,10 @@ false positive found in the process was fixed in the product, not silenced local
   scanners already do. Found by dogfooding — the hook blocked commits to the
   very files that define the detection patterns and to test fixtures with
   intentional fake secrets.
+- **`security.yml` template hardening**: the generated vibe-audit job now sets
+  up Node.js (SHA-pinned setup-node) and runs `npx --yes @vibeharness/cli` —
+  without it the job could stall on the npx install prompt or use the runner's
+  arbitrary default Node.
 - **CLI-aware dead-code scanner**: when `package.json` declares a `bin`, excess
   `console.log` is reported as INFO (no deduction) instead of LOW (-2) — stdout
   is a CLI's user interface. Non-CLI projects keep the stricter signal.
