@@ -87,6 +87,8 @@
         "name": "Astro",
         "stars": 61772,
         "license": "NOASSERTION",
+        "licenseOverride": "MIT",
+        "licenseNote": "GitHub API reports NOASSERTION (monorepo ships vendored license files); verified MIT from LICENSE file (2026-08-14).",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
         "tags": [
@@ -329,7 +331,7 @@
         "tags": [
           "component"
         ],
-        "notes": "User-centric component testing."
+        "notes": "User-centric component testing. Main branch is stable-only (development happens in the testing-library monorepo) — the sync's 90-day push warning for this entry is expected noise."
       }
     ],
     "deploy": [
@@ -347,23 +349,25 @@
         "notes": "Self-hostable PaaS (Vercel/Heroku alternative)."
       },
       {
-        "repo": "dokploy/dokploy",
-        "name": "Dokploy",
-        "stars": 36588,
-        "license": "NOASSERTION",
-        "lastPush": "2026-08-14",
+        "repo": "basecamp/kamal",
+        "name": "Kamal",
+        "stars": 14505,
+        "license": "MIT",
+        "lastPush": "2026-08-12",
         "lastVerified": "2026-08-14",
         "tags": [
           "self-host",
-          "paas"
+          "deploy"
         ],
-        "notes": "Lightweight self-hosted PaaS."
+        "notes": "Deploy web apps anywhere (37signals). Zero-downtime deploys to your own servers."
       },
       {
         "repo": "caprover/caprover",
         "name": "CapRover",
         "stars": 15128,
         "license": "NOASSERTION",
+        "licenseOverride": "Apache-2.0",
+        "licenseNote": "GitHub API reports NOASSERTION (multiple license files); verified Apache-2.0 from LICENSE file (2026-08-14).",
         "lastPush": "2026-08-08",
         "lastVerified": "2026-08-14",
         "tags": [
@@ -391,8 +395,10 @@
       {
         "repo": "modelcontextprotocol/typescript-sdk",
         "name": "MCP TypeScript SDK",
-        "stars": 13169,
+        "stars": 3234,
         "license": "NOASSERTION",
+        "licenseOverride": "Apache-2.0",
+        "licenseNote": "Licensing transition MIT → Apache-2.0 (verified from LICENSE file, 2026-08-14); both permissive.",
         "lastPush": "2026-08-14",
         "lastVerified": "2026-08-14",
         "tags": [
@@ -520,7 +526,7 @@
           "standards",
           "specs"
         ],
-        "notes": "Reusable standards/specs/roadmap layers for AI projects."
+        "notes": "Reusable standards/specs/roadmap layers for AI projects. Content-complete methodology repo — slow push cadence is expected (sync's 90-day warning for it is noise)."
       },
       {
         "repo": "PatrickJS/awesome-cursorrules",

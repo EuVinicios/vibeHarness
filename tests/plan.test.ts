@@ -2,7 +2,9 @@ import {
   loadCatalog,
   isCatalogStale,
   isLicenseAllowed,
+  isLicenseAcceptable,
   topEntries,
+  catalogViolations,
   type Catalog,
   type CatalogEntry,
 } from '../src/registry/index.js';
@@ -60,6 +62,46 @@ describe('registry catalog', () => {
     const catalog = await loadCatalog();
     expect(isLicenseAllowed(catalog!, { ...baseEntry, license: 'AGPL-3.0' })).toBe(false);
     expect(isLicenseAllowed(catalog!, { ...baseEntry, license: 'MIT' })).toBe(true);
+  });
+
+  it('licenseOverride (verified manually) wins over the API value', async () => {
+    const catalog = await loadCatalog();
+    // API reports NOASSERTION for Astro — the override marks it as verified MIT.
+    const astro = catalog!.categories.frontend.find((e) => e.repo === 'withastro/astro');
+    expect(astro?.licenseOverride).toBe('MIT');
+    expect(isLicenseAllowed(catalog!, astro!)).toBe(true);
+    // An override naming a disallowed license must still fail.
+    expect(
+      isLicenseAllowed(catalog!, { ...baseEntry, license: 'NOASSERTION', licenseOverride: 'AGPL-3.0' })
+    ).toBe(false);
+  });
+
+  it('out-of-allowlist licenses are tolerated only with a documented licenseNote', async () => {
+    const catalog = await loadCatalog();
+    const agplBare = { ...baseEntry, license: 'AGPL-3.0' };
+    const agplNoted = { ...baseEntry, license: 'AGPL-3.0', licenseNote: 'AGPL — CLI-only usage.' };
+    expect(isLicenseAllowed(catalog!, agplNoted)).toBe(false); // not in allowlist…
+    expect(isLicenseAcceptable(catalog!, agplNoted)).toBe(true); // …but documented
+    expect(isLicenseAcceptable(catalog!, agplBare)).toBe(false); // undocumented = violation
+  });
+
+  it('catalogViolations reports only real violations (documented exceptions pass)', async () => {
+    const catalog = await loadCatalog();
+    const violations = catalogViolations(catalog!);
+    // Known expected advisory noise, documented in the entries' notes:
+    // - react-testing-library: stable-main branch (>90d push)
+    // - agent-os: content-complete methodology repo (slow cadence)
+    const unexpected = violations.filter(
+      (v) => !v.includes('react-testing-library') && !v.includes('agent-os')
+    );
+    expect(unexpected).toEqual([]);
+  });
+
+  it('dokploy is not recommended (production use requires a commercial license)', async () => {
+    const catalog = await loadCatalog();
+    const all = Object.values(catalog!.categories).flat();
+    expect(all.some((e) => e.repo === 'dokploy/dokploy')).toBe(false);
+    expect(all.some((e) => e.repo === 'basecamp/kamal')).toBe(true);
   });
 });
 

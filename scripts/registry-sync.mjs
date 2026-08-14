@@ -59,7 +59,15 @@ for (const [category, entries] of Object.entries(catalog.categories)) {
         entry.stars = stars;
         dirty = true;
       }
-      if (entry.license !== license) {
+      // licenseOverride = maintainer-verified license for repos where the GitHub
+      // API reports NOASSERTION (e.g. monorepos with vendored license files).
+      // The override wins and API updates are ignored for that field.
+      if (entry.licenseOverride) {
+        if (entry.license !== entry.licenseOverride) {
+          entry.license = entry.licenseOverride;
+          dirty = true;
+        }
+      } else if (entry.license !== license) {
         changes.push(`${category}/${entry.repo}: license ${entry.license} → ${license}`);
         entry.license = license;
         dirty = true;
@@ -87,14 +95,20 @@ if (!dirty) {
 // the human reviewing the auto-PR sees them (fail-loud, not fail-open).
 const violations = [];
 const todayMs = Date.parse(today);
-for (const [category, entries] of Object.entries(catalog.categories)) {
-  for (const entry of entries) {
-    if (!catalog.criteria.allowedLicenses.includes(entry.license)) {
-      violations.push(`${category}/${entry.repo}: license "${entry.license}" is not in allowedLicenses`);
-    }
-    if (typeof entry.stars === 'number' && entry.stars < catalog.criteria.minStars) {
-      violations.push(`${category}/${entry.repo}: ${entry.stars} stars is below minStars (${catalog.criteria.minStars})`);
-    }
+  for (const [category, entries] of Object.entries(catalog.categories)) {
+    for (const entry of entries) {
+      const effectiveLicense = entry.licenseOverride ?? entry.license;
+      // Licenses outside the allowlist are tolerated ONLY with a licenseNote
+      // documenting the exception (AGPL/LGPL CLI-only tools, proprietary CLIs).
+      const licenseOk =
+        catalog.criteria.allowedLicenses.includes(effectiveLicense) ||
+        (typeof entry.licenseNote === 'string' && entry.licenseNote.trim().length > 0);
+      if (!licenseOk) {
+        violations.push(`${category}/${entry.repo}: license "${effectiveLicense}" not allowed and no licenseNote documenting an exception`);
+      }
+      if (typeof entry.stars === 'number' && entry.stars < catalog.criteria.minStars) {
+        violations.push(`${category}/${entry.repo}: ${entry.stars} stars is below minStars (${catalog.criteria.minStars})`);
+      }
     const pushAgeDays = (todayMs - Date.parse(entry.lastPush)) / 86400000;
     if (Number.isNaN(pushAgeDays) || pushAgeDays > catalog.criteria.maxPushAgeDays) {
       violations.push(`${category}/${entry.repo}: last push ${entry.lastPush} exceeds maxPushAgeDays (${catalog.criteria.maxPushAgeDays})`);
