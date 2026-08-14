@@ -42,10 +42,10 @@
     "ora": "^8.1.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.12",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.5.4",
     "@types/semver": "^7.5.8",
-    "jest": "^29.7.0",
+    "jest": "^30.4.2",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"
