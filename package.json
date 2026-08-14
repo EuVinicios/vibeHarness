@@ -31,6 +31,14 @@
   ],
   "author": "VibeHarness Contributors",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EuVinicios/vibeHarness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/EuVinicios/vibeHarness/issues"
+  },
+  "homepage": "https://github.com/EuVinicios/vibeHarness#readme",
   "publishConfig": {
     "access": "public"
   },
