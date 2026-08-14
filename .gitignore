@@ -7,3 +7,7 @@ dist/
 AUDIT_REPORT.md
 coverage/
 *.tsbuildinfo
+
+# generated stack output (test artifact)
+.vibe/STACK.md
+.vibe/CONTEXT.md
