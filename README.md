@@ -1,6 +1,12 @@
 # VibeHarness 🛡️
 
+[![Documentation](https://img.shields.io/badge/%F0%9F%93%96_docs-online-brightgreen)](https://euvinicios.github.io/vibeHarness/)
+[![npm](https://img.shields.io/npm/v/%40vibeharness%2Fcli)](https://www.npmjs.com/package/@vibeharness/cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 > **All-in-one production harness for AI-assisted development (vibecoding)**
+>
+> 📖 **Full documentation (PT-BR):** [euvinicios.github.io/vibeHarness](https://euvinicios.github.io/vibeHarness/)
 
 VibeHarness transforms chaotic AI-driven development into **secure, auditable, LGPD-compliant engineering** through a single CLI that covers the full development lifecycle — before, during, and after coding.
 
