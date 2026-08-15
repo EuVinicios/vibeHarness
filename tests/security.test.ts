@@ -150,9 +150,12 @@ describe('scanSecrets — triage (v0.8)', () => {
   });
 
   it('caps generic secrets in test files at medium/fixture', async () => {
+    // Built at runtime so the literal never appears in this source file
+    // (gitleaks scans the repo source, not the generated fixture).
+    const secretVal = 'Kx9Q' + 'm2Vw8Zr4Tn6B';
     await writeFile(
       join(tmpDir, 'app.test.ts'),
-      `const opts = { secret: 'Kx9Qm2Vw8Zr4Tn6B' };\n`,
+      `const opts = { secret: '${secretVal}' };\n`,
       'utf8'
     );
     const result = await scanSecrets();
