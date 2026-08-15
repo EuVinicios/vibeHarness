@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/macvini/.npm/_npx/**)",
+      "Read(//Users/macvini/.qwen/**)",
+      "Read(//Users/macvini/.gemini/**)"
+    ]
+  },
+  "$version": 4
+}
