@@ -93,18 +93,53 @@ lines.push('    snapshot dentro do pacote e o MCP roda local via stdio.');
 lines.push('');
 lines.push('---', '');
 
-lines.push('## 2. O que o `plan --apply` instala e configura de verdade', '');
+lines.push('## 2. Padrões de aplicação — o que o `plan --apply` escolhe por categoria', '');
 lines.push(
-  'Estas são as ferramentas com **recipe de aplicação** — o VibeHarness instala as',
+  'Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que possui recipe**.',
+  'É exatamente a lógica de `buildApplyPlan`: a recomendação nº 1 do registro, quando aplicável:',
+  ''
+);
+lines.push('| Categoria | Padrão aplicado | O que instala/configura |');
+lines.push('|-----------|-----------------|-------------------------|');
+const APPLICABLE_CATEGORIES = ['validation', 'database', 'auth', 'payments', 'testing', 'security', 'mcp', 'deploy'];
+for (const category of APPLICABLE_CATEGORIES) {
+  const sorted = [...(catalog.categories[category] ?? [])].sort((a, b) => b.stars - a.stars);
+  const top = sorted[0];
+  if (!top || !APPLY_RECIPES[top.repo]) {
+    lines.push(`| ${CATEGORY_TITLES[category]} | — (somente recomendação) | — |`);
+    continue;
+  }
+  lines.push(`| ${CATEGORY_TITLES[category]} | [${top.name}](https://github.com/${top.repo}) | ${RECIPE_ACTION[top.repo]} |`);
+}
+lines.push('');
+lines.push('!!! info "Autenticação e pagamentos só entram quando declarados"');
+lines.push('    O threat model do `init` controla: sem autenticação/pagamentos declarados,');
+lines.push('    essas categorias nem aparecem no plano. E se o projeto **já resolve** a');
+lines.push('    capacidade (ex.: Supabase Auth, Stripe/Asaas, Vercel), o apply pula a');
+lines.push('    categoria em vez de recomendar substituto.');
+lines.push('');
+lines.push('---', '');
+
+lines.push('## 3. Todas as ferramentas com recipe de aplicação', '');
+lines.push(
+  'Além dos padrões acima, estas ferramentas também têm recipe — entram no plano',
+  'quando são a nº 1 da categoria ou quando o registro muda. O VibeHarness instala as',
   'dependências, gera configs e starters (sempre fora do seu `src/`):',
   ''
 );
-lines.push('| Ferramenta | Categoria | O que o apply faz |');
-lines.push('|------------|-----------|-------------------|');
+lines.push('| Ferramenta | Categoria | Padrão? | O que o apply faz |');
+lines.push('|------------|-----------|:-------:|-------------------|');
+const defaultsByCategory = {};
+for (const category of APPLICABLE_CATEGORIES) {
+  const sorted = [...(catalog.categories[category] ?? [])].sort((a, b) => b.stars - a.stars);
+  const top = sorted[0];
+  if (top && APPLY_RECIPES[top.repo]) defaultsByCategory[category] = top.repo;
+}
 for (const [category, entries] of Object.entries(catalog.categories)) {
   for (const e of entries) {
     if (APPLY_RECIPES[e.repo]) {
-      lines.push(`| [${e.name}](https://github.com/${e.repo}) | ${CATEGORY_TITLES[category]} | ${RECIPE_ACTION[e.repo]} |`);
+      const isDefault = defaultsByCategory[category] === e.repo;
+      lines.push(`| [${e.name}](https://github.com/${e.repo}) | ${CATEGORY_TITLES[category]} | ${isDefault ? '⭐ **padrão**' : '—'} | ${RECIPE_ACTION[e.repo]} |`);
     }
   }
 }
@@ -115,7 +150,7 @@ lines.push('    explícito; em modo `--yes` são pulados com instruções.');
 lines.push('');
 lines.push('---', '');
 
-lines.push('## 3. Catálogo curado completo (recomendações)', '');
+lines.push('## 4. Catálogo curado completo (recomendações)', '');
 lines.push(
   'Projetos validados pelos critérios acima. Os que têm recipe aparecem na seção 2;',
   'os demais são **recomendações curadas** exibidas no `.vibe/STACK.md`:',
@@ -135,7 +170,7 @@ for (const [category, entries] of Object.entries(catalog.categories)) {
 }
 lines.push('---', '');
 
-lines.push('## 4. Ferramentas de sistema integradas', '');
+lines.push('## 5. Ferramentas de sistema integradas', '');
 lines.push('| Ferramenta | Onde atua | Instalação |');
 lines.push('|------------|-----------|------------|');
 lines.push('| [gitleaks](https://github.com/gitleaks/gitleaks) | Hook de pre-commit + CI (`security.yml`) — 150+ regras de segredo | Homebrew, com consentimento (fallback: padrões embutidos) |');
