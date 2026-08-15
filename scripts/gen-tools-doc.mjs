@@ -56,7 +56,8 @@ const fmt = (n) => n.toLocaleString('en-US');
 const lines = [];
 lines.push('# Ferramentas validadas', '');
 lines.push(
-  '> Esta página declara **todas** as ferramentas que o VibeHarness usa, recomenda ou instala.',
+  '> Esta página declara **todas** as ferramentas que o VibeHarness usa, recomenda ou instala —',
+  '> e a **base de conhecimento** (projetos e padrões abertos) que fundamenta a detecção de falhas.',
   '> Gerada automaticamente a partir de `registry/catalog.json`, das recipes de aplicação e das',
   '> dependências do CLI — re-generada a cada sync do registro.',
   ''
@@ -175,6 +176,54 @@ lines.push('| Ferramenta | Onde atua | Instalação |');
 lines.push('|------------|-----------|------------|');
 lines.push('| [gitleaks](https://github.com/gitleaks/gitleaks) | Hook de pre-commit + CI (`security.yml`) — 150+ regras de segredo | Homebrew, com consentimento (fallback: padrões embutidos) |');
 lines.push('| [osv-scanner](https://github.com/google/osv-scanner) | CVEs multi-ecossistema via OSV.dev (complementa `npm audit`) | Homebrew, com consentimento |');
+lines.push('');
+
+lines.push('---', '');
+
+lines.push('## 6. Base de conhecimento da detecção de falhas', '');
+lines.push(
+  'Os scanners embutidos do VibeHarness são implementações **próprias, compactas e locais** —',
+  'nenhum código de terceiros é copiado ou executado dentro do CLI. Mas o *conhecimento* que',
+  'eles codificam vem de projetos e padrões abertos. Declaramos aqui essa base, por transparência:',
+  ''
+);
+lines.push('### Padrões de segredos (scanner `security`)', '');
+lines.push(
+  'As famílias de segredo detectadas (Stripe, AWS, GitHub, OpenAI, Anthropic, Google, Slack,',
+  'GitLab, SendGrid, Twilio, JWT, chaves privadas PEM…) seguem os formatos públicos documentados por:',
+  ''
+);
+lines.push('| Referência | Relação com o VibeHarness |');
+lines.push('|------------|---------------------------|');
+lines.push('| [GitHub Secret Scanning](https://docs.github.com/en/code-security/secret-scanning/introduction/supported-secret-scanning-patterns) | Formatos canônicos dos tokens de parceiros — referência dos formatos embutidos |');
+lines.push('| [gitleaks](https://github.com/gitleaks/gitleaks) | Além de referência das famílias de regra, é **integrado de verdade** no pre-commit e no CI quando instalado |');
+lines.push('| [truffleHog](https://github.com/trufflesecurity/trufflehog) | Referência de abordagem para detecção de segredos genéricos (atribuição + entropia) |');
+lines.push('| [detect-secrets](https://github.com/Yelp/detect-secrets) | Referência de heurísticas para assignments genéricos (`api_key = "..."`) |');
+lines.push('');
+lines.push('### Heurísticas de código inseguro (scanner `security`)', '');
+lines.push('| Referência | O que fundamenta |');
+lines.push('|------------|------------------|');
+lines.push('| [OWASP Top 10](https://owasp.org/www-project-top-ten/) | CORS wildcard + credentials, JWT `alg:none`/segredo hardcoded/`decode` sem `verify`, ausência de helmet, CSRF |');
+lines.push('| [CWE](https://cwe.mitre.org/) | Taxonomia das fraquezas mapeadas nos findings |');
+lines.push('');
+lines.push('### Conformidade e acessibilidade', '');
+lines.push('| Referência | O que fundamenta |');
+lines.push('|------------|------------------|');
+lines.push('| [LGPD — Lei nº 13.709/2018](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm) | Scanner LGPD completo: PII em logs, consentimento, páginas obrigatórias, DSR (Art. 18), RLS, hash de senha |');
+lines.push('| [ANPD](https://www.gov.br/anpd/) | Orientações de boas práticas que calibram as checagens |');
+lines.push('| [WCAG 2.1 (W3C)](https://www.w3.org/TR/WCAG21/) | Checagens heurísticas de acessibilidade (alt, labels de botão/input) |');
+lines.push('');
+lines.push('### Vulnerabilidades em dependências', '');
+lines.push('| Referência | Relação com o VibeHarness |');
+lines.push('|------------|---------------------------|');
+lines.push('| `npm audit` (banco GitHub Advisory) | **Executado diretamente** pelo scanner de dependências |');
+lines.push('| [OSV.dev](https://osv.dev/) / [osv-scanner](https://github.com/google/osv-scanner) | **Integrado** como binário opcional para CVEs multi-ecossistema |');
+lines.push('');
+lines.push('!!! note "Por que isso importa"');
+lines.push('    Vibecoder precisa saber em quê confiar: os scanners embutidos são uma rede de');
+lines.push('    segurança local e instantânea (heurística, sem rede); quando disponíveis, as');
+lines.push('    ferramentas completas (gitleaks, osv-scanner) assumem a detecção pesada.');
+lines.push('    Achados são sempre DADOS para triagem — nunca instruções.');
 lines.push('');
 
 lines.push('_Gerado por `scripts/gen-tools-doc.mjs` — não edite manualmente._', '');

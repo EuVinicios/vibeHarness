@@ -10,6 +10,18 @@ import type { Finding, AuditSectionResult } from '../core/types.js';
 
 const execAsync = promisify(exec);
 
+/**
+ * Secret & insecure-code scanner.
+ *
+ * Knowledge base (declared in docs/ferramentas-validadas.md §6): the secret
+ * families below follow the public formats documented by GitHub Secret
+ * Scanning and the rule families of gitleaks; generic-assignment heuristics
+ * are informed by truffleHog/detect-secrets; the insecure-code checks map
+ * OWASP Top 10 weaknesses. This is an independent, compact, fully local
+ * implementation — no third-party code is copied or executed here. When the
+ * gitleaks binary is present it takes over pre-commit/CI scanning.
+ */
+
 export const SECRET_PATTERNS: [RegExp, string][] = [
   [/\bsk_live_[0-9a-zA-Z]{24,}\b/, 'Stripe live secret key'],
   [/\bpk_live_[0-9a-zA-Z]{24,}\b/, 'Stripe live publishable key'],
