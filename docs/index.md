@@ -107,6 +107,7 @@ Escolha o seu cliente de IA, reinicie, aprove o servidor MCP — e converse:
 </div>
 
 [:octicons-eye-16: Ver tudo em detalhes](o-que-fazemos.md){ .md-button .md-button--primary }
+[:octicons-package-16: Ferramentas validadas](ferramentas-validadas.md){ .md-button }
 
 ---
 

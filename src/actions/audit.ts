@@ -47,7 +47,10 @@ export async function auditAction(opts: AuditActionOptions = {}): Promise<Action
   const outputs: string[] = [];
   const root = projectRoot();
 
-  await writeScoreCache(report.totalScore, report.maxScore, report.grade);
+  const sectionScores = Object.fromEntries(
+    Object.entries(report.sections).map(([key, s]) => [key, { score: s.score, max: s.maxScore }])
+  );
+  await writeScoreCache(report.totalScore, report.maxScore, report.grade, root, sectionScores);
 
   const data: AuditActionData = {
     report,

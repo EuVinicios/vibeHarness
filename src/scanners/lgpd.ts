@@ -22,7 +22,7 @@ import { EXCLUDED_DIRS } from './security.js';
 
 /* ─── Patterns ─────────────────────────────────────────────────────────────── */
 
-/** Detects PII being printed/logged without masking */
+/** Detects PII being printed/logged without masking — literal PII values. */
 const PII_LOG_PATTERNS: [RegExp, string][] = [
   // CPF patterns (###.###.###-##  or  11 digits)
   [
@@ -39,17 +39,47 @@ const PII_LOG_PATTERNS: [RegExp, string][] = [
     /console\.(log|error|warn|info|debug)\s*\([^)]*(\+55|0\d{2})?\s*\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}/,
     'Phone number in log statement',
   ],
-  // Password/token field in logs
-  [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*\b(password|senha|token|secret|cpf|rg)\b/i,
-    'Sensitive field name in log statement',
-  ],
-  // Python print equivalents
-  [
-    /print\s*\([^)]*\b(password|senha|cpf|email|token|secret)\b/i,
-    'Sensitive field in Python print statement',
-  ],
 ];
+
+/**
+ * Sensitive *field names* in log statements — triaged (v0.8): a keyword inside
+ * a static message ('Error resetting password:') is not PII leakage; a keyword
+ * interpolated with data or logged as a value is.
+ */
+const SENSITIVE_FIELD_LOG_RE =
+  /console\.(log|error|warn|info|debug)\s*\(([^)\n]*)\b(password|senha|token|secret|cpf|rg)\b/gi;
+const SENSITIVE_FIELD_PRINT_RE = /print\s*\(([^)\n]*)\b(password|senha|cpf|email|token|secret)\b/gi;
+
+/**
+ * Returns the quote character surrounding `index` in `src` ('"', "'", '`'),
+ * or null when the position is outside any string literal.
+ */
+function quoteStateAt(src: string, index: number): string | null {
+  let quote: string | null = null;
+  for (let i = 0; i < index && i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '\\') {
+      i++;
+      continue;
+    }
+    if (quote === null && (ch === '"' || ch === "'" || ch === '`')) quote = ch;
+    else if (quote === ch) quote = null;
+  }
+  return quote;
+}
+
+/**
+ * Classify a sensitive-keyword log match using the whole call line:
+ * - keyword outside any quotes (logged as a value) → dynamic
+ * - keyword inside a template literal that interpolates data → dynamic
+ * - keyword inside a plain static string → static (no data logged)
+ */
+function triageSensitiveLog(callLine: string, kwIndex: number): 'dynamic' | 'static' {
+  const quote = quoteStateAt(callLine, kwIndex);
+  if (quote === null) return 'dynamic';
+  if (quote === '`') return callLine.includes('${') ? 'dynamic' : 'static';
+  return 'static';
+}
 
 /** Insecure password hashing */
 const WEAK_HASH_PATTERNS: [RegExp, string][] = [
@@ -87,12 +117,19 @@ const TERMS_ROUTES = [
   '/termos',
 ];
 
+/**
+ * DSR evidence — HTTP routes AND Supabase/PostgreSQL RPCs/functions.
+ * v0.8: projects implementing LGPD Art. 18 via `supabase.rpc('delete_own_account')`
+ * or SQL functions were false negatives when only route syntax was recognised.
+ */
 const DSR_DELETE_PATTERNS = [
   /delete\s+['"`]\/api\/(user|account|me|usuario|conta)/i,
   /router\.(delete|del)\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
   /app\.(delete|del)\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
   /route\s*\(\s*['"`]delete['"`]\s*,\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
   /@Delete\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
+  /\.rpc\(\s*['"`](delete[_-]?(own[_-]?)?(account|user|conta|usuario)|(account|user|conta|usuario)[_-]?delete)['"`]/i,
+  /create\s+(?:or\s+replace\s+)?function\s+(delete[_-]?(own[_-]?)?(account|user|conta|usuario)|(account|user|conta|usuario)[_-]?delete)\s*\(/i,
 ];
 
 const DSR_EXPORT_PATTERNS = [
@@ -100,6 +137,8 @@ const DSR_EXPORT_PATTERNS = [
   /download.*\/(user|account|me|usuario)\/(data|dados)/i,
   /portabilidade/i,
   /'data.?export'|"data.?export"|`data.?export`/i,
+  /\.rpc\(\s*['"`](export[_-]?(own[_-]?)?(user[_-]?)?data|user[_-]?data[_-]?export|exportar[_-]?dados)['"`]/i,
+  /create\s+(?:or\s+replace\s+)?function\s+(export[_-]?(own[_-]?)?(user[_-]?)?data|user[_-]?data[_-]?export)\s*\(/i,
 ];
 
 const RLS_CHECK_PATTERNS = [
@@ -220,6 +259,63 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
   );
   findings.push(...piiFindings);
 
+  /* 1b. Sensitive field NAMES in logs — triaged (v0.8).
+   * 'Error resetting password:' (static message, no data) is not leakage;
+   * interpolated values or logged identifiers are. Static matches are not
+   * scored — one info finding summarises how many were triaged away. */
+  let staticMessageMatches = 0;
+  for (const file of sourceFiles) {
+    let content: string;
+    try {
+      content = await readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    const rel = file.replace(projectRoot() + '/', '');
+    let dynamicHit = false;
+
+    for (const re of [SENSITIVE_FIELD_LOG_RE, SENSITIVE_FIELD_PRINT_RE]) {
+      re.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(content)) !== null) {
+        const keyword = m[m.length - 1];
+        // Use the full call line (not just the arg group, which stops at the
+        // first ')') so template-literal interpolation `${...}` is visible.
+        const lineStart = content.lastIndexOf('\n', m.index) + 1;
+        let lineEnd = content.indexOf('\n', m.index);
+        if (lineEnd === -1) lineEnd = content.length;
+        const callLine = content.slice(lineStart, lineEnd);
+        const kwIndex = m.index + m[0].lastIndexOf(keyword) - lineStart;
+        if (triageSensitiveLog(callLine, kwIndex) === 'dynamic') {
+          dynamicHit = true;
+          break;
+        }
+        staticMessageMatches++;
+      }
+      if (dynamicHit) break;
+    }
+
+    if (dynamicHit) {
+      findings.push({
+        severity: 'high',
+        category: 'lgpd-pii-logs',
+        message: 'Sensitive field value in log statement',
+        file: rel,
+        triage: 'real',
+        fix: 'Use a logging library with field masking (e.g., pino redact) and never log passwords, tokens, CPF or RG. Log opaque identifiers instead (`logger.info({ userId }, "msg")`).',
+      });
+    }
+  }
+  if (staticMessageMatches > 0) {
+    findings.push({
+      severity: 'info',
+      category: 'lgpd-pii-logs',
+      message: `${staticMessageMatches} log statement(s) mention sensitive words in static messages only — triaged, no data logged`,
+      triage: 'static-message',
+      fix: 'No action required. Static messages like "Error resetting password:" carry no personal data and are not scored.',
+    });
+  }
+
   /* 2. Cookie consent */
   let hasConsent = false;
   for (const file of uiFiles) {
@@ -291,11 +387,22 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
   }
   }
 
-  /* 4. DSR endpoints (web apps only) */
+  /* 4. DSR endpoints (web apps only) — HTTP routes, Supabase RPCs and SQL
+   * functions alike (v0.8: `delete_own_account()`/`export_user_data()` were
+   * false negatives when only route syntax was recognised). */
   if (isWebApp) {
   let hasDeletion = false;
   let hasExport = false;
-  for (const file of sourceFiles) {
+  const dsrFiles = [
+    ...sourceFiles,
+    ...(await fg('**/*.sql', {
+      cwd: root,
+      ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`), ...auditIgnores],
+      absolute: true,
+      suppressErrors: true,
+    })),
+  ];
+  for (const file of dsrFiles) {
     let content: string;
     try {
       content = await readFile(file, 'utf8');

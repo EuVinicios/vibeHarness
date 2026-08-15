@@ -66,4 +66,5 @@ nav:
       - audit: comandos/audit.md
       - doctor: comandos/doctor.md
       - start (deprecado): comandos/start.md
+  - Ferramentas validadas: ferramentas-validadas.md
   - Segurança & LGPD: seguranca.md

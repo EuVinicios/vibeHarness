@@ -9,7 +9,9 @@ import {
   executeApplyPlan,
   readInstalledDeps,
   appendApplyTrail,
+  detectResolvedCapabilities,
   type ApplyResult,
+  type ResolvedCapabilities,
 } from '../core/apply.js';
 import { writeStartersReadme } from './starters.js';
 import { PROJECT_TYPES, PROJECT_TYPE_QUESTION, type ProjectType } from './questions.js';
@@ -40,6 +42,8 @@ export interface PlanActionData {
   planItems: PlanItemSummary[];
   skipped: { category: string; name?: string; reason: string }[];
   stackWritten: boolean;
+  /** Capabilities already solved by the existing stack (no conflicting recommendations). */
+  resolved: ResolvedCapabilities;
   apply?: ApplyResult;
   wiringInstructions?: string[];
 }
@@ -116,6 +120,13 @@ export async function planAction(opts: PlanActionOptions = {}): Promise<ActionRe
   }
   if (!threatModel) notes.push('No threat model found — run init for tailored recommendations');
 
+  // v0.8: don't recommend replacements for capabilities the project already solved.
+  const resolved = detectResolvedCapabilities();
+  const resolvedBits = [resolved.auth, resolved.payments, resolved.deploy].filter(Boolean);
+  if (resolvedBits.length > 0) {
+    notes.push(`Existing stack already solves: ${resolvedBits.join(', ')} — conflicting recommendations skipped`);
+  }
+
   const input: StackPlanInput = {
     projectName,
     projectType,
@@ -129,6 +140,7 @@ export async function planAction(opts: PlanActionOptions = {}): Promise<ActionRe
         }
       : null,
     detectedStack: stack,
+    resolved,
   };
 
   const vibeDir = join(projectRoot(), '.vibe');
@@ -144,6 +156,7 @@ export async function planAction(opts: PlanActionOptions = {}): Promise<ActionRe
     hasAuth: threatModel?.hasAuth ?? true,
     hasPayments: threatModel?.hasPayments ?? false,
     installedDeps: readInstalledDeps(),
+    resolved,
   });
 
   const planItems: PlanItemSummary[] = applyPlan.items.map((i) => ({
@@ -167,6 +180,7 @@ export async function planAction(opts: PlanActionOptions = {}): Promise<ActionRe
     planItems,
     skipped: applyPlan.skipped.map((s) => ({ category: s.category, name: s.entry?.name, reason: s.reason })),
     stackWritten,
+    resolved,
   };
 
   if (!opts.apply) {

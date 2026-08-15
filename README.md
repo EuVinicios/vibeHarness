@@ -333,6 +333,11 @@ The dedicated LGPD scanner checks:
 - **Activity** — recent push required
 - **Minimum adoption** — star threshold
 
+**Every tool the registry references is declared explicitly** — see
+[`docs/ferramentas-validadas.md`](docs/ferramentas-validadas.md) for the full,
+auto-generated list of what VibeHarness *runs*, what `plan --apply` *installs*,
+and what is a *recommendation only*. Regenerate it with `npm run docs:tools`.
+
 A weekly GitHub Action (`.github/workflows/registry-sync.yml`) refreshes stars/licenses/activity from the GitHub API and **opens a PR automatically** when data changes. `vibe-harness plan` uses the local snapshot (no network at runtime) and warns when it is older than 30 days.
 
 > **Operations note:** the sync only writes the catalog (and opens a PR) when at least one
