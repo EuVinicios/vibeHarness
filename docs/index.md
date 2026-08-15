@@ -45,7 +45,10 @@ Transforma desenvolvimento caótico com IA em engenharia **segura, auditável e 
 npx @vibeharness/cli install
 ```
 
-Escolha o seu cliente de IA, reinicie, aprove o servidor MCP — e converse:
+Escolha o seu cliente de IA, reinicie, aprove o servidor MCP — e converse.
+Nada de decorar comandos: a IA do cliente dirige o ciclo por você. (Se preferir
+o cockpit de terminal antigo, `start` ainda funciona — mas está deprecado; o
+caminho recomendado é `install` + conversa.)
 
 1. :robot: **A IA pergunta no chat** — PRD, threat model, tipo de projeto (nada de decorar comandos)
 2. :hammer_and_wrench: **A IA executa o ciclo** — `prd → plan --apply → pack → audit`, instalando a stack curada e integrando os starters com o seu consentimento

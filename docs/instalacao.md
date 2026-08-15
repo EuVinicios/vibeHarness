@@ -56,7 +56,8 @@ O `install` registra o servidor MCP e a camada de skill — a sua IA passa a dir
 | opencode | MCP (`opencode.json`) + `AGENTS.md` |
 | VS Code Copilot | MCP (`.vscode/mcp.json`) + instruções |
 | Windsurf | MCP (config global) + regras |
-| Antigravity / Qwen | MCP + `AGENTS.md` (beta) |
+| Antigravity | MCP (`.agents/mcp_config.json`) + `AGENTS.md` (beta) |
+| Qwen Code | MCP (`.qwen/settings.json`) + `AGENTS.md` (beta) |
 
 Dentro do cliente, basta pedir: **"rode vibe status"** — ou simplesmente dizer *"quero um app de X"*.
 
@@ -86,6 +87,13 @@ CLAUDE.md / .cursorrules / .windsurfrules   ← regras para a sua IA
 !!! success "Nada é enviado para fora"
     O VibeHarness roda 100% localmente. O registro curado é um snapshot
     dentro do pacote — nenhum dado do seu projeto sai da sua máquina.
+
+!!! warning "Desenvolvendo o próprio VibeHarness?"
+    Se você roda o `install` **dentro do repo do VibeHarness**, o instalador
+    detecta isso e registra o servidor MCP apontando para o build local
+    (`node ./dist/cli.js mcp`) em vez de `npx` — dentro desse projeto, o
+    `npx` não encontra o binário e o servidor apareceria como offline.
+    Depois de alterar o `src/`, rode `npm run build` e reinicie o cliente de IA.
 
 <div class="grid" markdown>
 

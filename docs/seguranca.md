@@ -72,6 +72,31 @@ O scanner verifica automaticamente:
     (banner de cookies, páginas de privacidade) — o scanner detecta a
     superfície do projeto antes de pontuar.
 
+## E se a auditoria apontar algo "errado" que não é?
+
+Nem todo alerta é um problema de verdade. Desde a v0.8, os scanners **classificam** cada
+achado antes de pontuar, e o que for sabidamente inofensivo tem a pontuação
+reduzida automaticamente — mas continua aparecendo no relatório, para você
+ver:
+
+| Classificação | O que significa, em linguagem simples | Exemplo |
+|---------------|----------------------------------------|---------|
+| `env-reference` | O valor é uma **referência** a uma variável, não o segredo em si | `API_KEY="$API_KEY"` |
+| `fixture` | Placeholder óbvio de teste — **não é um segredo real** | `'server-secret'`, `'test-key'` |
+| `ci-ephemeral` | Conexão de banco local ou de CI, descartável | `postgres:postgres@localhost` |
+| `static-message` | Palavra sensível dentro de uma **mensagem de log**, sem dado pessoal | `console.log('senha inválida')` |
+
+Se mesmo assim você tiver **arquivos que a auditoria sempre acusa e que você
+sabe serem falsos positivos** (tipicamente: arquivos de teste com chaves
+falsas de propósito), crie um arquivo `.vibe/auditignore` na raiz do projeto —
+mesma sintaxe do `.gitignore` — listando esses caminhos. O `audit` deixa de
+varrer o que estiver lá, sem esconder nada que você não tenha pedido.
+
+!!! tip "Como ler o score"
+    O `audit` dá uma nota de **0 a 100**. A meta de lançamento é **≥ 70 e zero
+    findings críticos** — é o que o CI do `init` exige para aprovar PRs.
+    Achados `low` e `info` tiram pouco ou nada da nota; `high` tira muito.
+
 ## O ciclo de segurança recomendado
 
 ```text
