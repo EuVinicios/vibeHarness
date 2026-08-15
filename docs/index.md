@@ -63,6 +63,44 @@ O `start` faz **uma única pergunta** — em qual estágio o projeto está — e
     | :red_circle: Depois | [`audit`](comandos/audit.md) | Auditoria 0–100 com prompts de correção |
     | :arrows_counterclockwise: Manutenção | [`doctor`](comandos/doctor.md) | Dependências, runtime EOL, Dependabot |
 
+## Tudo o que fazemos por você
+
+<div class="grid cards" markdown>
+
+-   :zap: **Executamos, não apontamos**
+
+    ---
+
+    Stack recomendada é stack **instalada e configurada** (`plan --apply`).
+    Documento de requisitos é documento **gerado** (`prd`). Nada de lista de links.
+
+-   :lock: **Segurança em 5 camadas**
+
+    ---
+
+    Pre-commit hook, regras de IA, gate de CI com gitleaks + CVEs,
+    auditoria 0–100 e doctor contínuo. Cada camada cobre um momento do ciclo.
+
+-   :scales: **LGPD desde o início**
+
+    ---
+
+    Scanner dedicado (PII em logs, consentimento, DSR, RLS, hash de senha)
+    + política de conformidade gerada no `init`.
+
+-   :robot: **Correção pronta para a sua IA**
+
+    ---
+
+    Cada finding da auditoria vem com um **AI Fix Prompt** para colar
+    no Cursor, Claude ou Copilot — inclusive um prompt em lote para os críticos.
+
+</div>
+
+[:octicons-eye-16: Ver tudo em detalhes](o-que-fazemos.md){ .md-button .md-button--primary }
+
+---
+
 ## O princípio
 
 > **O VibeHarness não aponta o caminho — ele caminha com você.**

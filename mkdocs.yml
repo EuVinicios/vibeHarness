@@ -24,11 +24,18 @@ theme:
         icon: material/brightness-4
         name: Mudar para modo claro
   features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.top
-    - content.code.copy
+    - announce.dismiss
     - content.action.edit
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
 
 markdown_extensions:
   - admonition
@@ -45,6 +52,7 @@ markdown_extensions:
 
 nav:
   - Início: index.md
+  - O que fazemos por você: o-que-fazemos.md
   - Instalação: instalacao.md
   - Guia por estágio: guia-por-estagio.md
   - Comandos:
