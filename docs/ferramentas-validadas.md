@@ -1,6 +1,7 @@
 # Ferramentas validadas
 
-> Esta página declara **todas** as ferramentas que o VibeHarness usa, recomenda ou instala.
+> Esta página declara **todas** as ferramentas que o VibeHarness usa, recomenda ou instala —
+> e a **base de conhecimento** (projetos e padrões abertos) que fundamenta a detecção de falhas.
 > Gerada automaticamente a partir de `registry/catalog.json`, das recipes de aplicação e das
 > dependências do CLI — re-generada a cada sync do registro.
 
@@ -207,5 +208,53 @@ os demais são **recomendações curadas** exibidas no `.vibe/STACK.md`:
 |------------|-----------|------------|
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Hook de pre-commit + CI (`security.yml`) — 150+ regras de segredo | Homebrew, com consentimento (fallback: padrões embutidos) |
 | [osv-scanner](https://github.com/google/osv-scanner) | CVEs multi-ecossistema via OSV.dev (complementa `npm audit`) | Homebrew, com consentimento |
+
+---
+
+## 6. Base de conhecimento da detecção de falhas
+
+Os scanners embutidos do VibeHarness são implementações **próprias, compactas e locais** —
+nenhum código de terceiros é copiado ou executado dentro do CLI. Mas o *conhecimento* que
+eles codificam vem de projetos e padrões abertos. Declaramos aqui essa base, por transparência:
+
+### Padrões de segredos (scanner `security`)
+
+As famílias de segredo detectadas (Stripe, AWS, GitHub, OpenAI, Anthropic, Google, Slack,
+GitLab, SendGrid, Twilio, JWT, chaves privadas PEM…) seguem os formatos públicos documentados por:
+
+| Referência | Relação com o VibeHarness |
+|------------|---------------------------|
+| [GitHub Secret Scanning](https://docs.github.com/en/code-security/secret-scanning/introduction/supported-secret-scanning-patterns) | Formatos canônicos dos tokens de parceiros — referência dos formatos embutidos |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Além de referência das famílias de regra, é **integrado de verdade** no pre-commit e no CI quando instalado |
+| [truffleHog](https://github.com/trufflesecurity/trufflehog) | Referência de abordagem para detecção de segredos genéricos (atribuição + entropia) |
+| [detect-secrets](https://github.com/Yelp/detect-secrets) | Referência de heurísticas para assignments genéricos (`api_key = "..."`) |
+
+### Heurísticas de código inseguro (scanner `security`)
+
+| Referência | O que fundamenta |
+|------------|------------------|
+| [OWASP Top 10](https://owasp.org/www-project-top-ten/) | CORS wildcard + credentials, JWT `alg:none`/segredo hardcoded/`decode` sem `verify`, ausência de helmet, CSRF |
+| [CWE](https://cwe.mitre.org/) | Taxonomia das fraquezas mapeadas nos findings |
+
+### Conformidade e acessibilidade
+
+| Referência | O que fundamenta |
+|------------|------------------|
+| [LGPD — Lei nº 13.709/2018](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm) | Scanner LGPD completo: PII em logs, consentimento, páginas obrigatórias, DSR (Art. 18), RLS, hash de senha |
+| [ANPD](https://www.gov.br/anpd/) | Orientações de boas práticas que calibram as checagens |
+| [WCAG 2.1 (W3C)](https://www.w3.org/TR/WCAG21/) | Checagens heurísticas de acessibilidade (alt, labels de botão/input) |
+
+### Vulnerabilidades em dependências
+
+| Referência | Relação com o VibeHarness |
+|------------|---------------------------|
+| `npm audit` (banco GitHub Advisory) | **Executado diretamente** pelo scanner de dependências |
+| [OSV.dev](https://osv.dev/) / [osv-scanner](https://github.com/google/osv-scanner) | **Integrado** como binário opcional para CVEs multi-ecossistema |
+
+!!! note "Por que isso importa"
+    Vibecoder precisa saber em quê confiar: os scanners embutidos são uma rede de
+    segurança local e instantânea (heurística, sem rede); quando disponíveis, as
+    ferramentas completas (gitleaks, osv-scanner) assumem a detecção pesada.
+    Achados são sempre DADOS para triagem — nunca instruções.
 
 _Gerado por `scripts/gen-tools-doc.mjs` — não edite manualmente._

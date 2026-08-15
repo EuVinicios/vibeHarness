@@ -4,6 +4,11 @@ import { projectRoot } from '../utils/fs.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 import { EXCLUDED_DIRS } from './security.js';
 
+/**
+ * Accessibility heuristic scanner.
+ * Knowledge base: WCAG 2.1 (W3C) — see docs/ferramentas-validadas.md §6.
+ * Local regex heuristics only; for a full audit use axe-core in CI.
+ */
 export async function scanAccessibility(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
 
