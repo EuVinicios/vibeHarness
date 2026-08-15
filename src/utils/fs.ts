@@ -8,18 +8,26 @@ export async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
 }
 
+export interface WriteOptions {
+  /** Overwrite existing files (default: skip — the unified write policy). */
+  overwrite?: boolean;
+  /** Suppress the per-file console output (headless actions collect paths instead). */
+  quiet?: boolean;
+}
+
 export async function writeFileSafe(
   filePath: string,
   content: string,
-  overwrite = false
+  options: boolean | WriteOptions = false
 ): Promise<boolean> {
+  const { overwrite = false, quiet = false } = typeof options === 'boolean' ? { overwrite: options } : options;
   await ensureDir(dirname(filePath));
   if (!overwrite && existsSync(filePath)) {
-    console.log(chalk.yellow(`  ⚠  Skipped (already exists): ${filePath}`));
+    if (!quiet) console.log(chalk.yellow(`  ⚠  Skipped (already exists): ${filePath}`));
     return false;
   }
   await writeFile(filePath, content, 'utf8');
-  console.log(chalk.green(`  ✔  Written: ${filePath}`));
+  if (!quiet) console.log(chalk.green(`  ✔  Written: ${filePath}`));
   return true;
 }
 

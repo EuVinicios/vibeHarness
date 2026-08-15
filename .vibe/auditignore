@@ -18,7 +18,9 @@ src/scanners/infra.ts
 # CLI output lines that mention "secret(s)" trip the PII-in-logs heuristic
 # (they print UI text, not user data).
 src/commands/doctor.ts
-src/commands/init.ts
+# The pre-commit hook snippet embeds the secret-detection patterns themselves
+# (moved from src/commands/init.ts to the headless action in v0.7.0).
+src/actions/init.ts
 # The security scanner's pattern definitions contain the secret literals
 # themselves; the packager documents the prefixes it redacts.
 src/scanners/security.ts

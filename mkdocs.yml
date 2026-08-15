@@ -54,13 +54,16 @@ nav:
   - Início: index.md
   - O que fazemos por você: o-que-fazemos.md
   - Instalação: instalacao.md
+  - Usando com a sua IA (MCP): usando-com-sua-ia.md
   - Guia por estágio: guia-por-estagio.md
   - Comandos:
-      - start (Conductor): comandos/start.md
+      - status: comandos/status.md
+      - install: comandos/install.md
       - prd: comandos/prd.md
       - init: comandos/init.md
       - plan (--apply): comandos/plan.md
       - pack: comandos/pack.md
       - audit: comandos/audit.md
       - doctor: comandos/doctor.md
+      - start (deprecado): comandos/start.md
   - Segurança & LGPD: seguranca.md

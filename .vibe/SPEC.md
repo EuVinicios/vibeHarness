@@ -25,10 +25,18 @@
 
 ## 4. Architecture Decisions
 
-- **API style:** REST / GraphQL / tRPC (choose one)
-- **Auth provider:** (e.g., Auth.js, Supabase Auth, Clerk)
-- **Database:** (e.g., PostgreSQL via Prisma, Supabase, SQLite)
-- **Deployment target:** (e.g., Vercel, Railway, Fly.io, AWS)
+> v0.7.0 "AI-native interface" — the AI client becomes the UI. Decisions recorded 2026-08-15 (see PRD §1, §4).
+
+- **Layering (inviolable):** `CLI/terminal + MCP server` (presentation) → `src/actions/*` pure headless actions (orchestration) → `core/*`, `scanners/*`, `packager/*`, `generators/*` (engines, unchanged). Actions never print; renderers never contain business logic.
+- **Action contract:** every action is `run(opts): Promise<ActionResult>` with `{ ok, action, summary, data, pendingQuestions?, nextStep?, outputs? }`. Unanswered questionnaires surface as `pendingQuestions[]` (asked by the AI in chat) instead of blocking terminal prompts.
+- **AI client integration:** MCP over stdio (`vibe-harness mcp`, dep `@modelcontextprotocol/sdk`); per-client setup is **data-driven** via `registry/clients.json` (detect globs, rules file, MCP config path/format, extras) — new client = new JSON entry.
+- **Default MCP config:** project-root `.mcp.json` (standard `mcpServers` shape) unless a client requires its own file (`.vscode/mcp.json` servers-shape, `opencode.json` local-type, Windsurf `.wmcp`, Qwen `.qwen/settings.json`).
+- **Default command:** `vibe-harness` → non-interactive `status` panel (reuses `ui/box`, `theme`, `score-cache`, `prompt-builder`). Conductor cockpit (v0.6.0 `conductor/engine.ts`, `keys.ts`, `clipboard.ts`) removed; `start` deprecated for one release.
+- **Apply loop closure:** `plan --apply` emits `wiringInstructions[]` per starter into `.vibe/starters/README.md` + `ActionResult`; the AI performs wiring with user consent; `status` shows the integration checklist while starters are unwired.
+- **Write policy (unified):** generated files skip-if-exists; `--force` to overwrite — one semantic across init/rules/install.
+- **Prompt safety:** anything that becomes an AI prompt (MCP audit fixes, status CTA) flows through `sanitizeForPrompt` (4-backtick fence, data-not-instructions directive).
+- **API style:** N/A — local CLI + stdio MCP.
+- **Database:** N/A — file-based state in `.vibe/`.
 
 ## 5. Out of Scope (MVP)
 

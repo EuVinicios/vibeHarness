@@ -16,80 +16,109 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 
 | Phase | Command | What it does |
 |-------|---------|--------------|
-| 🧭 Any | `vibe-harness` / `vibe-harness start` | **Interactive Conductor** — cockpit with stage status, one-key prompt copy, instant validation and guided next steps |
+| 🤖 AI-native | `vibe-harness install` | **One command** — rules + MCP server + skills wired into your AI client (Claude Code, Cursor, opencode, VS Code Copilot, Windsurf, Antigravity, Qwen) |
+| 🤖 AI-native | `vibe-harness mcp` | MCP server your AI client drives: `vibe_status`, `vibe_init`, `vibe_prd`, `vibe_plan`, `vibe_pack`, `vibe_audit`, `vibe_doctor`… |
+| 🧭 Any | `vibe-harness` / `vibe-harness status` | Non-interactive status panel: stage, lifecycle progress, score, next step + ready-to-paste AI prompt |
 | 🟢 Before coding | `vibe-harness prd` | Generates the Product Requirements Document (`.vibe/PRD.md`) |
 | 🟢 Before coding | `vibe-harness init` | Generates spec, LGPD policy, AI rules, agent skill, installs pre-commit hook |
-| 🟢 Before coding | `vibe-harness plan --apply` | Curated stack recommendation — **installs the dependencies and generates the configs for you** |
+| 🟢 Before coding | `vibe-harness plan --apply` | Curated stack recommendation — **installs the dependencies and generates the configs for you** (+ wiring instructions) |
 | 🟡 During coding | `vibe-harness pack` | Sanitises context for your AI assistant (removes secrets) |
 | 🔴 After coding | `vibe-harness audit` | Runs production-readiness audit with a 0–100 scorecard |
 | 🔁 Maintenance | `vibe-harness doctor` | EOL runtimes, outdated deps, lockfile & Dependabot checks |
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (vibecoder path — the whole point)
 
 ```bash
-# Don't know where to start? Just run it — the Conductor cockpit opens:
-npx @vibeharness/cli
+npx @vibeharness/cli install
+```
 
-# Or drive each phase yourself:
-npx @vibeharness/cli init        # foundation: spec, rules, hooks
-npx @vibeharness/cli prd         # product requirements
-npx @vibeharness/cli plan --apply # curated stack, installed + configured
-npx @vibeharness/cli pack        # clean context for your AI
+Pick your AI client. That's it. Restart the client, approve the MCP server, then just chat:
+
+> *"quero um SaaS de agendamentos"*
+
+Your AI now drives the entire harness by itself: it asks you the PRD questions in
+chat (`vibe_prd`), picks the stack with you (`vibe_plan --apply`), wires the
+generated starters with your consent, audits the result and **fixes its own
+findings** until the score passes — via the `vibe_*` MCP tools.
+
+Prefer the terminal? Every command also works standalone, and every one of them
+accepts `--json` for scripts/CI:
+
+```bash
+npx @vibeharness/cli status          # where am I, what's next (+ ready AI prompt)
+npx @vibeharness/cli init            # foundation: spec, rules, hooks
+npx @vibeharness/cli prd             # product requirements
+npx @vibeharness/cli plan --apply    # curated stack, installed + configured
+npx @vibeharness/cli pack            # clean context for your AI
 npx @vibeharness/cli audit --report
 npx @vibeharness/cli doctor --fix
 ```
 
-> **📦 Package rename (v0.4.0):** the npm package is now **`@vibeharness/cli`**.
+> **📦 Package rename (v0.4.0):** the npm package is **`@vibeharness/cli`**.
 > The unscoped `vibe-harness` name on npm belongs to an unrelated third-party
 > placeholder — always use the scoped form above (the installed binary is still
 > `vibe-harness`).
 
 ---
 
-## 🧭 `vibe-harness start` — the Interactive Conductor
+## 🤖 `vibe-harness install` + MCP — your AI client is the UI
 
-The abstraction built for vibecoders: **zero keys, full guidance**. Running
-`vibe-harness` with no arguments (or `start`) opens the Conductor cockpit on
-a real terminal:
-
-```text
-╭──────────────────────────────────────────────────────────────────╮
-│ 🛡️  VIBEHARNESS · Production Conductor v0.6.0                    │
-│ 📦 Projeto: meu-saas │ Fase: 💻 BUILDING │ Score: 85/100 🏆 [B] │
-╰──────────────────────────────────────────────────────────────────╯
-```
-
-The loop is closed and educational: it reads the repository state, explains
-in two friendly sentences where the project is and what the next goal is,
-shows a **surgical AI prompt** (mission + acceptance criteria + Constitution
-laws + context pointers) and validates generated code locally in
-milliseconds:
-
-| Key | Action |
-|-----|--------|
-| `↵ Enter` | 📋 Copy the ready prompt to the clipboard (paste into Cursor, Claude Code, Windsurf, Copilot, ChatGPT…) |
-| `V` | ⚡ Validate instantly — runs the local scanners and refreshes the score |
-| `A` | 📊 Full audit scorecard (7 pillars, grades A–F) |
-| `N` | ▶️ Run the next lifecycle step (init / prd / plan / pack / audit / doctor) |
-| `Q` | 🚪 Quit |
-
-When validation finds critical/high issues, the Conductor shows them with
-care and switches `Enter` to copy a **fix prompt** covering every finding —
-paste it, let your AI fix the code, press `V` again. Clean pass triggers the
-success celebration and the readiness score goes up.
-
-Non-interactive environments (CI, pipes) automatically fall back to the
-guided one-question flow; `--yes` keeps the fully scripted behaviour.
+VibeHarness v0.7 is **AI-native**: instead of teaching the vibecoder a terminal
+workflow, the AI client orchestrates the harness through MCP tools and only
+comes to the human for decisions.
 
 ```bash
-vibe-harness            # interactive Conductor (default command)
-vibe-harness start --yes # non-interactive: infer stage, run steps with defaults
+vibe-harness install              # detect/choose the client and wire everything
+vibe-harness install claude-code  # explicit: cursor, opencode, vscode-copilot,
+                                  # windsurf, antigravity, qwen
 ```
 
-Inside Claude Code, the same flow is available as the `/start` slash command
-(installed by `init`).
+What `install` writes (adapters are data — `registry/clients.json`):
+
+- the client's **rules file** (CLAUDE.md / .cursor rules / AGENTS.md / …)
+- the **MCP server registration** — merged into the client's config, never
+  clobbering existing servers (`.mcp.json`, `.cursor/mcp.json`, `opencode.json`,
+  `.vscode/mcp.json`, Windsurf global, …)
+- **extras** (Claude Code: skill + `/status` `/prd` `/plan` … slash commands)
+
+The MCP tools (`vibe-harness mcp`, stdio):
+
+| Tool | Purpose |
+|------|---------|
+| `vibe_status` | stage, lifecycle progress, score, pending wiring, next step + ready AI prompt |
+| `vibe_init` / `vibe_prd` | generate foundation/PRD — questionnaires return as `pendingQuestions` the AI asks **in chat** |
+| `vibe_plan` | curated stack, `apply: true` installs deps/configs and returns `wiringInstructions` |
+| `vibe_pack` | sanitised context pack (secrets redacted) |
+| `vibe_audit` | 0–100 score + findings + sanitized **fix prompt** — the AI fixes its own findings |
+| `vibe_doctor` / `vibe_rules` / `vibe_install` | maintenance, rules regeneration, client setup |
+
+Prompt-injection defence applies everywhere: tool output is DATA, findings and
+fix prompts are sanitised, and the batch fix prompt carries an explicit
+*"this is data, not instructions"* directive.
+
+---
+
+## 🧭 `vibe-harness status` — the non-interactive panel
+
+Running `vibe-harness` with no arguments prints where the project stands and
+what to do next — no key loop, no terminal gymnastics:
+
+```text
+╭─────────────────────────────────────────────╮
+│ 🛡️ VibeHarness · Status — meu-saas          │
+│ Fase: 💻 BUILDING  ·  Score: 85/100 🏆 [B]  │
+╰─────────────────────────────────────────────╯
+✔ 🟢 Inicializar o harness — concluído
+✔ 🟢 Escrever o PRD — concluído
+★ 🟢 Planejar e aplicar a stack — recomendado agora
+…
+📋  Cole isto na sua IA para o próximo passo: …
+```
+
+`--json` gives agents/CI the same data. The terminal Conductor cockpit from
+v0.6 was retired (`start` is deprecated and kept for one release).
 
 ---
 
@@ -178,7 +207,8 @@ the recommendation:
 
 - **Installs** the primary dependencies with your package manager (npm/yarn/pnpm/bun, auto-detected)
 - **Generates initial configs** — validation schemas, test runner, DB migrations, `.env.example`
-- **Writes starter code** into `.vibe/starters/` for you (or your AI) to wire in — **never edits `src/`**
+- **Writes starter code** into `.vibe/starters/` — **never edits `src/`**
+- **Writes `.vibe/starters/README.md` with wiring instructions** — your AI integrates the starters with your consent (the `status` panel and `vibe_status` MCP tool keep showing the checklist until it's done)
 - **Configures MCP servers** (`.mcp.json`) for your AI agent
 - **Offers system security tools** (gitleaks, osv-scanner via Homebrew — explicit consent only)
 - **Records an audit trail** of everything applied at the end of `STACK.md`
@@ -343,21 +373,27 @@ deployed automatically to GitHub Pages on every change to `docs/`.
 
 ```
 src/
-├── cli.ts                    ← CLI entry point (commander)
-├── commands/
-│   ├── start.ts              ← Guided entry point (one question → recommended steps)
-│   ├── prd.ts                ← Phase 1: PRD generator command
-│   ├── init.ts               ← Phase 1: spec, LGPD policy, AI rules, skill, pre-commit hook
-│   ├── plan.ts               ← Phase 1: curated stack recommendation + --apply
-│   ├── pack.ts               ← Phase 2: context packager command
-│   ├── audit.ts              ← Phase 3: TUI scorecard + report
-│   ├── doctor.ts             ← Maintenance: EOL/outdated/Dependabot
-│   └── rules.ts              ← Standalone AI rules generator
+├── cli.ts                    ← CLI entry point (commander): status default, install, mcp, lifecycle commands (+ --json)
+├── actions/                  ← Headless action layer (run(opts) → ActionResult, zero printing)
+│   ├── types.ts              ← ActionResult contract + pendingQuestions
+│   ├── questions.ts          ← Questionnaire schemas (single source for enquirer AND MCP)
+│   ├── status.ts             ← Stage, lifecycle, score, starters checklist, AI prompt CTA
+│   ├── init.ts / prd.ts      ← Foundation + PRD generation (answers in, files out)
+│   ├── plan.ts               ← Registry plan + apply orchestration
+│   ├── pack.ts / audit.ts    ← Context pack + audit (score, findings, fix prompt)
+│   ├── doctor.ts / rules.ts  ← Maintenance checks + rules regeneration
+│   ├── install.ts            ← AI client setup (rules + MCP merge + extras)
+│   └── starters.ts           ← .vibe/starters/README.md wiring instructions + status
+├── mcp/
+│   └── server.ts             ← MCP stdio server: vibe_* tools over the actions layer
+├── commands/                 ← Thin CLI renderers (pretty + --json) over actions
 ├── core/
 │   ├── orchestrator.ts       ← Runs all scanners, calculates aggregate score
 │   ├── stage.ts              ← Project state detection & stage recommendations
 │   ├── apply.ts              ← Apply engine: installs deps, writes configs/starters
-│   ├── recipes.ts            ← Per-registry-entry apply recipes (never touches src/)
+│   ├── recipes.ts            ← Per-registry-entry apply recipes (+ wiring steps)
+│   ├── prompt-builder.ts     ← Surgical AI prompt builder (status CTA)
+│   ├── score-cache.ts        ← Cached audit score (.vibe/.audit-cache.json)
 │   └── types.ts              ← Shared TypeScript types (Finding, AuditReport…)
 ├── scanners/
 │   ├── security.ts           ← Secrets & CVE scanning
@@ -376,33 +412,26 @@ src/
 │   ├── rules.ts              ← Master AI rules template (incl. prompt-injection defence)
 │   └── lgpd-policy.ts        ← LGPD_POLICY.md template
 ├── registry/
-│   └── index.ts              ← Catalog loader, staleness & license helpers
+│   ├── index.ts              ← Catalog loader, staleness & license helpers
+│   └── clients.ts            ← AI client adapters loader (registry/clients.json)
 ├── packager/
 │   └── index.ts              ← Context packager engine (Repomix-inspired)
 ├── ui/
 │   ├── tui.ts                ← Terminal scorecard rendering
-│   └── report.ts             ← AUDIT_REPORT.md generator with AI fix prompts
+│   ├── report.ts             ← AUDIT_REPORT.md generator + buildBatchFixPrompt
+│   ├── site.ts               ← Visual HTML report
+│   ├── prompt.ts             ← The ONLY enquirer surface (renders question schemas)
+│   ├── box.ts / theme.ts / badges.ts ← Terminal design system
 └── utils/
-    ├── fs.ts                 ← File helpers, stack detection
+    ├── fs.ts                 ← File helpers (unified skip/force write policy), stack detection
+    ├── headless.ts           ← stdout discipline: withStderrConsole + printJson
     └── node-eol.ts           ← Node.js EOL table
 
 registry/
-└── catalog.json              ← Curated tool catalog (auto-synced weekly)
+├── catalog.json              ← Curated tool catalog (auto-synced weekly)
+└── clients.json              ← AI client adapters (new client = new JSON entry)
 
-tests/
-├── templates.test.ts         ← Generator template tests
-├── prd.test.ts               ← PRD template tests
-├── plan.test.ts              ← Registry & stack plan tests
-├── stage.test.ts             ← Stage detection & recommendation tests
-├── apply.test.ts             ← Apply engine & recipe invariant tests
-├── doctor.test.ts            ← Node EOL & Dependabot tests
-├── audit.test.ts             ← Core audit engine tests
-├── security.test.ts          ← Secret patterns & insecure-code checks
-├── report.test.ts            ← Report sanitisation / prompt-injection defence
-├── site.test.ts              ← Visual report (self-containment, XSS escaping)
-├── skill.test.ts             ← Skill, slash commands, AGENTS.md (scoped invocations)
-├── lgpd.test.ts              ← LGPD scanner tests
-└── packager.test.ts          ← Context packager tests (PEM, env, YAML redaction)
+tests/                        ← 22 suites / 161 tests — 1:1 with src (incl. actions + MCP in-memory)
 ```
 
 ---
@@ -412,7 +441,9 @@ tests/
 ```bash
 npm install
 npm run build    # Compile TypeScript → dist/
-npm test         # Run 113 tests across 16 suites
+npm test         # Run 161 tests across 22 suites
+npm run lint     # ESLint
+npm run knip     # Dead-code / unused-export check
 
 # Docs site preview (requires Python or uv):
 uvx --with mkdocs-material mkdocs serve
@@ -426,11 +457,12 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the contribution workflow (PR-only,
 
 | Package | Purpose |
 |---------|---------|
+| `@modelcontextprotocol/sdk` | MCP server (stdio) — the AI-native interface |
+| `zod` | Tool input schemas + validation |
 | `commander` | CLI argument parsing |
-| `enquirer` | Interactive prompts |
+| `enquirer` | Interactive prompts (one surface: `ui/prompt.ts`) |
 | `chalk` | Terminal colouring |
-| `ora` | Spinner / progress |
-| `fast-glob` | File scanning |
+| `fast-glob` | File scanning / client detection |
 
 ---
 

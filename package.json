@@ -1,6 +1,6 @@
 {
   "name": "@vibeharness/cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Production harness for vibecoding — PRD, spec, curated stack recommendations, AI rules, context packing and audits in a single CLI",
   "type": "module",
   "bin": {
@@ -44,11 +44,12 @@
     "access": "public"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "enquirer": "^2.4.1",
     "fast-glob": "^3.3.2",
-    "ora": "^9.4.1"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -67,9 +68,6 @@
     "node": ">=18.0.0"
   },
   "knip": {
-    "ignore": [
-      "src/audit/engine.ts"
-    ],
     "ignoreExportsUsedInFile": true
   },
   "jest": {

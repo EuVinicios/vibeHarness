@@ -1,4 +1,4 @@
-import type { ActionId, ProjectState, Stage } from '../core/stage.js';
+import type { ActionId, ProjectState, Stage } from './stage.js';
 import { readFileSafe, projectRoot } from '../utils/fs.js';
 import { sanitizeForPrompt } from '../ui/report.js';
 import { icons } from '../ui/theme.js';

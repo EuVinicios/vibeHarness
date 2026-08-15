@@ -15,7 +15,7 @@ Tudo 100% local — nada do seu projeto sai da sua máquina.
 | No modo caos :see_no_evil: | Com o VibeHarness :sparkles: |
 |---|---|
 | A IA inventa requisitos, você retrabalha | [`prd`](comandos/prd.md) gera requisitos, personas e escopo **antes** do primeiro token de código |
-| Você escreve prompts na mão, a IA se perde | O [Conductor](comandos/start.md) gera o **prompt cirúrgico** (missão + critérios + leis) e copia com uma tecla |
+| Você escreve prompts na mão, a IA se perde | O [`install`](comandos/install.md) registra tools MCP — a sua IA orquestra o ciclo e gera o **prompt cirúrgico** (missão + critérios + leis) sozinha |
 | Stack escolhida no hype ou no chute | [`plan --apply`](comandos/plan.md) recomenda do registro curado **e já instala e configura** |
 | Chave de API commitada sem perceber | Bloqueada em 3 camadas: [pre-commit, auditoria e CI](seguranca.md) |
 | Contexto da IA vazando segredos | [`pack`](comandos/pack.md) redige chaves, tokens e PEMs automaticamente |
