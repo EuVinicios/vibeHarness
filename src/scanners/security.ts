@@ -1,14 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
 import { loadAuditIgnores } from '../utils/audit-ignore.js';
+import { detectPackageManager } from '../core/stage.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Secret & insecure-code scanner.
@@ -26,6 +27,9 @@ export const SECRET_PATTERNS: [RegExp, string][] = [
   [/\bsk_live_[0-9a-zA-Z]{24,}\b/, 'Stripe live secret key'],
   [/\bpk_live_[0-9a-zA-Z]{24,}\b/, 'Stripe live publishable key'],
   [/AKIA[0-9A-Z]{16}/, 'AWS Access Key ID'],
+  [/ASIA[0-9A-Z]{16}/, 'AWS STS temporary access key'],
+  [/\bhf_[A-Za-z0-9]{30,}\b/, 'Hugging Face API token'],
+  [/"private_key"\s*:\s*"-----BEGIN[^"]*PRIVATE KEY/, 'Google Cloud service account private key'],
   [/(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}/, 'GitHub token'],
   [/\bsk-ant-[0-9A-Za-z_-]{20,}/, 'Anthropic API key'],
   [/\bsk-proj-[0-9A-Za-z_-]{20,}/, 'OpenAI project API key'],
@@ -52,6 +56,9 @@ const VENDOR_LABELS = new Set([
   'Stripe live secret key',
   'Stripe live publishable key',
   'AWS Access Key ID',
+  'AWS STS temporary access key',
+  'Hugging Face API token',
+  'Google Cloud service account private key',
   'GitHub token',
   'Anthropic API key',
   'OpenAI project API key',
@@ -76,6 +83,7 @@ const GENERIC_VALUE_PATTERNS: { label: string; re: RegExp }[] = [
 const DB_URI_VALUE_PATTERNS: { label: string; re: RegExp }[] = [
   { label: 'MongoDB URI with credentials', re: /mongodb(?:\+srv)?:\/\/([^@\s"'`]+):([^@\s"'`]+)@([^\s"'`/]+)/g },
   { label: 'PostgreSQL URI with credentials', re: /postgresql:\/\/([^@\s"'`]+):([^@\s"'`]+)@([^\s"'`/]+)/g },
+  { label: 'MySQL URI with credentials', re: /mysql:\/\/([^@\s"'`]+):([^@\s"'`]+)@([^\s"'`/]+)/g },
 ];
 
 /* ─── Triage heuristics (v0.8 — born from real dogfooding data) ──────────────
@@ -287,7 +295,13 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
   const gitignoreContent = existsSync(join(projectRoot(), '.gitignore'))
     ? await readFile(join(projectRoot(), '.gitignore'), 'utf8')
     : '';
-  if (!gitignoreContent.includes('.env')) {
+  // Line-based check: a substring match would pass on a comment like "# .env".
+  const gitignoreLines = gitignoreContent
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+  const ignoresEnv = gitignoreLines.some((l) => /^(\*\*\/|\/)?\.env(\.|$|\*)/.test(l));
+  if (!ignoresEnv) {
     findings.push({
       severity: 'high',
       category: 'secrets',
@@ -388,52 +402,132 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
   return { score: Math.max(0, maxScore - deductions), maxScore, findings };
 }
 
+interface AuditCounts {
+  critical: number;
+  high: number;
+  moderate: number;
+}
+
+const AUDIT_ARGS: Record<string, string[]> = {
+  npm: ['audit', '--json'],
+  pnpm: ['audit', '--json'],
+  yarn: ['npm', 'audit', '--json'],
+  bun: ['audit', '--json'],
+};
+
+/** npm and pnpm both emit `metadata.vulnerabilities` in their JSON audits. */
+function parseNpmStyleAudit(report: unknown): AuditCounts | null {
+  const vuln = (report as { metadata?: { vulnerabilities?: Partial<AuditCounts> } } | null)
+    ?.metadata?.vulnerabilities;
+  if (!vuln) return null;
+  return { critical: vuln.critical ?? 0, high: vuln.high ?? 0, moderate: vuln.moderate ?? 0 };
+}
+
+/** yarn berry `yarn npm audit --json` emits NDJSON — one record per advisory. */
+function parseYarnAudit(stdout: string): AuditCounts | null {
+  const counts: AuditCounts = { critical: 0, high: 0, moderate: 0 };
+  let sawRecord = false;
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const rec = JSON.parse(trimmed) as { value?: { severity?: string; type?: string } };
+      const severity = rec.value?.severity;
+      if (!severity || rec.value?.type === 'SUMMARY') continue;
+      sawRecord = true;
+      if (severity === 'critical') counts.critical++;
+      else if (severity === 'high') counts.high++;
+      else if (severity === 'moderate' || severity === 'medium') counts.moderate++;
+    } catch { /* not a JSON record — ignore */ }
+  }
+  return sawRecord ? counts : null;
+}
+
 export async function scanDependencies(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
+  const maxScore = 10;
+  const root = projectRoot();
 
-  if (!existsSync(join(projectRoot(), 'package.json'))) {
-    return { score: 10, maxScore: 10, findings: [] };
+  if (!existsSync(join(root, 'package.json'))) {
+    return { score: maxScore, maxScore, findings: [] };
   }
 
+  const pm = detectPackageManager(root);
+  const auditArgs = AUDIT_ARGS[pm];
+  if (!auditArgs) {
+    findings.push({
+      severity: 'info',
+      category: 'dependencies',
+      message: `Dependency audit is not supported for package manager "${pm}"`,
+      fix: 'Run your package manager\'s audit command manually and review the advisories.',
+    });
+    return { score: maxScore, maxScore, findings };
+  }
+
+  let stdout: string;
   try {
-    await execAsync('npm audit --json', { cwd: projectRoot() });
+    // Vulnerable trees make the audit exit non-zero — stdout still carries
+    // the report, so the catch branch below is the normal "findings" path.
+    const result = await execFileAsync(pm, auditArgs, { cwd: root, maxBuffer: 10 * 1024 * 1024 });
+    stdout = result.stdout;
   } catch (err: unknown) {
-    const output = (err as { stdout?: string }).stdout ?? '';
-    if (output) {
-      try {
-        const report = JSON.parse(output) as {
-          metadata?: { vulnerabilities?: { high?: number; critical?: number; moderate?: number } };
-        };
-        const vuln = report.metadata?.vulnerabilities ?? {};
-        if ((vuln.critical ?? 0) > 0) {
-          findings.push({
-            severity: 'critical',
-            category: 'dependencies',
-            message: `${vuln.critical} critical CVEs in npm dependencies`,
-            fix: 'Run `npm audit fix` or upgrade the affected packages. Check https://security.snyk.io for details.',
-          });
-        }
-        if ((vuln.high ?? 0) > 0) {
-          findings.push({
-            severity: 'high',
-            category: 'dependencies',
-            message: `${vuln.high} high-severity CVEs in npm dependencies`,
-            fix: 'Run `npm audit fix` to resolve. Review packages with `npm audit` for details.',
-          });
-        }
-        if ((vuln.moderate ?? 0) > 0) {
-          findings.push({
-            severity: 'medium',
-            category: 'dependencies',
-            message: `${vuln.moderate} moderate CVEs in npm dependencies`,
-            fix: 'Run `npm audit` and evaluate upgrades for affected packages.',
-          });
-        }
-      } catch { /* parse error — skip */ }
+    stdout = (err as { stdout?: string }).stdout ?? '';
+    if (!stdout && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      findings.push({
+        severity: 'info',
+        category: 'dependencies',
+        message: `${pm} not found on PATH — dependency audit skipped`,
+        fix: `Install ${pm} (or run \`npm audit\` / \`pnpm audit\`) so CVEs in dependencies are checked.`,
+      });
+      return { score: maxScore, maxScore, findings };
     }
   }
 
-  const maxScore = 10;
+  let parsed: unknown = null;
+  try {
+    parsed = stdout ? JSON.parse(stdout) : null;
+  } catch { /* yarn NDJSON and partial outputs are handled per-pm below */ }
+
+  const counts =
+    pm === 'yarn' ? parseYarnAudit(stdout) : parsed !== null ? parseNpmStyleAudit(parsed) : null;
+
+  if (!counts) {
+    // Never fail silently: an unparseable audit used to score 10/10 with
+    // zero findings, hiding CVEs from the user.
+    findings.push({
+      severity: 'info',
+      category: 'dependencies',
+      message: `Dependency audit produced no parseable report (${pm}) — verify manually`,
+      fix: `Run \`${pm} audit\`${pm === 'yarn' ? ' (or `yarn npm audit`)' : ''} in the project and review the advisories.`,
+    });
+    return { score: maxScore, maxScore, findings };
+  }
+
+  if (counts.critical > 0) {
+    findings.push({
+      severity: 'critical',
+      category: 'dependencies',
+      message: `${counts.critical} critical CVEs in dependencies`,
+      fix: `Run \`${pm} audit fix\` or upgrade the affected packages. Check https://security.snyk.io for details.`,
+    });
+  }
+  if (counts.high > 0) {
+    findings.push({
+      severity: 'high',
+      category: 'dependencies',
+      message: `${counts.high} high-severity CVEs in dependencies`,
+      fix: `Run \`${pm} audit fix\` to resolve. Review packages with \`${pm} audit\` for details.`,
+    });
+  }
+  if (counts.moderate > 0) {
+    findings.push({
+      severity: 'medium',
+      category: 'dependencies',
+      message: `${counts.moderate} moderate CVEs in dependencies`,
+      fix: `Run \`${pm} audit\` and evaluate upgrades for affected packages.`,
+    });
+  }
+
   const deductions = findings.reduce(
     (acc, f) => acc + (f.severity === 'critical' ? 10 : f.severity === 'high' ? 5 : 2),
     0

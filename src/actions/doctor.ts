@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { projectRoot, writeFileSafe } from '../utils/fs.js';
 import { dependabotTemplate } from '../generators/dependabot.js';
@@ -8,7 +8,12 @@ import { NODE_EOL, nodeEolStatus } from '../utils/node-eol.js';
 import { checkSecurityTooling, commandExists } from '../utils/tooling.js';
 import type { ActionResult } from './types.js';
 
-const execAsync = promisify(exec);
+// execFile (never exec): arguments travel as an argv array, so values coming
+// from git remotes or the GitHub API can never reach a shell interpreter.
+const execFileAsync = promisify(execFile);
+
+/** Strict charset for anything interpolated into a GitHub API path. */
+const SAFE_API_SEGMENT = /^[A-Za-z0-9._/-]+$/;
 
 export type CheckStatus = 'ok' | 'warn' | 'fail' | 'info';
 
@@ -47,6 +52,18 @@ function parseOrigin(url: string): { owner: string; repo: string } | null {
   return { owner: match[1], repo: match[2] };
 }
 
+/**
+ * Parse an origin URL into a validated `owner/repo` slug. Remote URLs are
+ * untrusted input (a cloned repo can set anything) — anything outside the
+ * strict charset is rejected instead of being used to build API paths.
+ */
+export function trustedGithubSlug(originUrl: string): string | null {
+  const parsed = parseOrigin(originUrl.trim());
+  if (!parsed) return null;
+  if (!SAFE_API_SEGMENT.test(parsed.owner) || !SAFE_API_SEGMENT.test(parsed.repo)) return null;
+  return `${parsed.owner}/${parsed.repo}`;
+}
+
 function majorBehind(current?: string, latest?: string): boolean {
   if (!current || !latest) return false;
   const a = parseInt(current.replace(/^\D*/, ''), 10);
@@ -56,7 +73,10 @@ function majorBehind(current?: string, latest?: string): boolean {
 
 async function getOutdated(): Promise<Record<string, OutdatedEntry>> {
   try {
-    const { stdout } = await execAsync('npm outdated --json', { cwd: projectRoot() });
+    const { stdout } = await execFileAsync('npm', ['outdated', '--json'], {
+      cwd: projectRoot(),
+      maxBuffer: 10 * 1024 * 1024,
+    });
     return JSON.parse(stdout || '{}') as Record<string, OutdatedEntry>;
   } catch (err: unknown) {
     const stdout = (err as { stdout?: string }).stdout;
@@ -85,31 +105,38 @@ async function checkGithubPosture(checks: DoctorCheck[]): Promise<void> {
     return;
   }
 
-  let origin: { owner: string; repo: string } | null = null;
+  let slug: string | null = null;
   try {
-    const { stdout } = await execAsync('git remote get-url origin', { cwd: projectRoot() });
-    origin = parseOrigin(stdout.trim());
+    const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+      cwd: projectRoot(),
+    });
+    slug = trustedGithubSlug(stdout);
   } catch {
     /* no git remote */
   }
-  if (!origin) {
+  if (!slug) {
     checks.push({
       id: 'gh-origin',
       group: 'platform',
       label: 'GitHub origin remote',
       status: 'info',
-      detail: 'no GitHub origin — platform checks skipped',
+      detail: 'no parseable GitHub origin — platform checks skipped',
       blocking: false,
     });
     return;
   }
 
-  const slug = `${origin.owner}/${origin.repo}`;
   const api = `repos/${slug}`;
 
   try {
-    const { stdout } = await execAsync(
-      `gh api ${api} --jq '{secret_scanning: .security_and_analysis.secret_scanning.status, push_protection: .security_and_analysis.secret_scanning_push_protection.status}'`,
+    const { stdout } = await execFileAsync(
+      'gh',
+      [
+        'api',
+        api,
+        '--jq',
+        '{secret_scanning: .security_and_analysis.secret_scanning.status, push_protection: .security_and_analysis.secret_scanning_push_protection.status}',
+      ],
       { cwd: projectRoot() }
     );
     const analysis = JSON.parse(stdout) as { secret_scanning?: string; push_protection?: string };
@@ -141,10 +168,16 @@ async function checkGithubPosture(checks: DoctorCheck[]): Promise<void> {
   }
 
   try {
-    const { stdout: repoInfo } = await execAsync(`gh api ${api} --jq .default_branch`, { cwd: projectRoot() });
+    const { stdout: repoInfo } = await execFileAsync('gh', ['api', api, '--jq', '.default_branch'], {
+      cwd: projectRoot(),
+    });
     const branch = repoInfo.trim() || 'main';
-    const { stdout: branchInfo } = await execAsync(
-      `gh api ${api}/branches/${branch} --jq .protected`,
+    if (!SAFE_API_SEGMENT.test(branch)) {
+      throw new Error(`untrusted default branch name: ${branch}`);
+    }
+    const { stdout: branchInfo } = await execFileAsync(
+      'gh',
+      ['api', `${api}/branches/${branch}`, '--jq', '.protected'],
       { cwd: projectRoot() }
     );
     const protectedBranch = branchInfo.trim() === 'true';
