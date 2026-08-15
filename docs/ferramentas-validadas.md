@@ -35,29 +35,54 @@ Dependências de runtime do `@vibeharness/cli` (o código que executa na sua má
 
 ---
 
-## 2. O que o `plan --apply` instala e configura de verdade
+## 2. Padrões de aplicação — o que o `plan --apply` escolhe por categoria
 
-Estas são as ferramentas com **recipe de aplicação** — o VibeHarness instala as
+Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que possui recipe**.
+É exatamente a lógica de `buildApplyPlan`: a recomendação nº 1 do registro, quando aplicável:
+
+| Categoria | Padrão aplicado | O que instala/configura |
+|-----------|-----------------|-------------------------|
+| Validação de entrada | [Zod](https://github.com/colinhacks/zod) | instala `zod` + starter de schema |
+| Banco de dados | [Supabase](https://github.com/supabase/supabase) | instala `@supabase/supabase-js` + cliente starter + env vars |
+| Autenticação | [Better Auth](https://github.com/better-auth/better-auth) | instala `better-auth` + starter + env vars |
+| Pagamentos | [Stripe Node SDK](https://github.com/stripe/stripe-node) | instala `stripe` + webhook starter (verificação de assinatura) + env vars |
+| Testes | [Playwright](https://github.com/microsoft/playwright) | instala `@playwright/test` + config de E2E |
+| Segurança | [Gitleaks](https://github.com/gitleaks/gitleaks) | binário de sistema (Homebrew, com consentimento) — scan de segredos |
+| Servidores MCP | [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | escreve `.mcp.json` com servidores MCP curados |
+| Deploy / Hospedagem | [Coolify](https://github.com/coollabsio/coolify) | orientação de deploy self-hosted + env vars |
+
+!!! info "Autenticação e pagamentos só entram quando declarados"
+    O threat model do `init` controla: sem autenticação/pagamentos declarados,
+    essas categorias nem aparecem no plano. E se o projeto **já resolve** a
+    capacidade (ex.: Supabase Auth, Stripe/Asaas, Vercel), o apply pula a
+    categoria em vez de recomendar substituto.
+
+---
+
+## 3. Todas as ferramentas com recipe de aplicação
+
+Além dos padrões acima, estas ferramentas também têm recipe — entram no plano
+quando são a nº 1 da categoria ou quando o registro muda. O VibeHarness instala as
 dependências, gera configs e starters (sempre fora do seu `src/`):
 
-| Ferramenta | Categoria | O que o apply faz |
-|------------|-----------|-------------------|
-| [Supabase](https://github.com/supabase/supabase) | Banco de dados | instala `@supabase/supabase-js` + cliente starter + env vars |
-| [Prisma](https://github.com/prisma/prisma) | Banco de dados | instala Prisma + schema starter + env vars |
-| [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) | Banco de dados | instala Drizzle + config + schema starter + env vars |
-| [Auth.js (NextAuth)](https://github.com/nextauthjs/next-auth) | Autenticação | instala `next-auth` + starter + env vars |
-| [Better Auth](https://github.com/better-auth/better-auth) | Autenticação | instala `better-auth` + starter + env vars |
-| [Stripe Node SDK](https://github.com/stripe/stripe-node) | Pagamentos | instala `stripe` + webhook starter (verificação de assinatura) + env vars |
-| [Zod](https://github.com/colinhacks/zod) | Validação de entrada | instala `zod` + starter de schema |
-| [Valibot](https://github.com/fabian-hiller/valibot) | Validação de entrada | instala `valibot` + starter de schema |
-| [Yup](https://github.com/jquense/yup) | Validação de entrada | instala `yup` + starter de schema |
-| [Vitest](https://github.com/vitest-dev/vitest) | Testes | instala `vitest` + config + teste de exemplo |
-| [Playwright](https://github.com/microsoft/playwright) | Testes | instala `@playwright/test` + config de E2E |
-| [Jest](https://github.com/jestjs/jest) | Testes | instala `jest` (config por conta do projeto) |
-| [Coolify](https://github.com/coollabsio/coolify) | Deploy / Hospedagem | orientação de deploy self-hosted + env vars |
-| [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | Servidores MCP | escreve `.mcp.json` com servidores MCP curados |
-| [Gitleaks](https://github.com/gitleaks/gitleaks) | Segurança | binário de sistema (Homebrew, com consentimento) — scan de segredos |
-| [OSV-Scanner](https://github.com/google/osv-scanner) | Segurança | binário de sistema (Homebrew, com consentimento) — CVEs multi-ecossistema |
+| Ferramenta | Categoria | Padrão? | O que o apply faz |
+|------------|-----------|:-------:|-------------------|
+| [Supabase](https://github.com/supabase/supabase) | Banco de dados | ⭐ **padrão** | instala `@supabase/supabase-js` + cliente starter + env vars |
+| [Prisma](https://github.com/prisma/prisma) | Banco de dados | — | instala Prisma + schema starter + env vars |
+| [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) | Banco de dados | — | instala Drizzle + config + schema starter + env vars |
+| [Auth.js (NextAuth)](https://github.com/nextauthjs/next-auth) | Autenticação | — | instala `next-auth` + starter + env vars |
+| [Better Auth](https://github.com/better-auth/better-auth) | Autenticação | ⭐ **padrão** | instala `better-auth` + starter + env vars |
+| [Stripe Node SDK](https://github.com/stripe/stripe-node) | Pagamentos | ⭐ **padrão** | instala `stripe` + webhook starter (verificação de assinatura) + env vars |
+| [Zod](https://github.com/colinhacks/zod) | Validação de entrada | ⭐ **padrão** | instala `zod` + starter de schema |
+| [Valibot](https://github.com/fabian-hiller/valibot) | Validação de entrada | — | instala `valibot` + starter de schema |
+| [Yup](https://github.com/jquense/yup) | Validação de entrada | — | instala `yup` + starter de schema |
+| [Vitest](https://github.com/vitest-dev/vitest) | Testes | — | instala `vitest` + config + teste de exemplo |
+| [Playwright](https://github.com/microsoft/playwright) | Testes | ⭐ **padrão** | instala `@playwright/test` + config de E2E |
+| [Jest](https://github.com/jestjs/jest) | Testes | — | instala `jest` (config por conta do projeto) |
+| [Coolify](https://github.com/coollabsio/coolify) | Deploy / Hospedagem | ⭐ **padrão** | orientação de deploy self-hosted + env vars |
+| [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | Servidores MCP | ⭐ **padrão** | escreve `.mcp.json` com servidores MCP curados |
+| [Gitleaks](https://github.com/gitleaks/gitleaks) | Segurança | ⭐ **padrão** | binário de sistema (Homebrew, com consentimento) — scan de segredos |
+| [OSV-Scanner](https://github.com/google/osv-scanner) | Segurança | — | binário de sistema (Homebrew, com consentimento) — CVEs multi-ecossistema |
 
 !!! warning "Nada é aplicado sem a sua confirmação"
     Binários de sistema (gitleaks, osv-scanner) só são instalados com consentimento
@@ -65,7 +90,7 @@ dependências, gera configs e starters (sempre fora do seu `src/`):
 
 ---
 
-## 3. Catálogo curado completo (recomendações)
+## 4. Catálogo curado completo (recomendações)
 
 Projetos validados pelos critérios acima. Os que têm recipe aparecem na seção 2;
 os demais são **recomendações curadas** exibidas no `.vibe/STACK.md`:
@@ -176,7 +201,7 @@ os demais são **recomendações curadas** exibidas no `.vibe/STACK.md`:
 
 ---
 
-## 4. Ferramentas de sistema integradas
+## 5. Ferramentas de sistema integradas
 
 | Ferramenta | Onde atua | Instalação |
 |------------|-----------|------------|
