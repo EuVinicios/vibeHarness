@@ -20,10 +20,12 @@ Com `--apply`, o CLI:
 1. :package: **Instala** as dependências primárias com o seu gerenciador
    (npm, yarn, pnpm ou bun — detectado pelo lockfile)
 2. :gear: **Gera configs** iniciais seguras (validação, testes, banco, MCP)
-3. :file_folder: **Cria starters** em `.vibe/starters/` para você (ou a sua IA)
-   incorporar — nunca edita o seu `src/`
-4. :key: **Monta o `.env.example`** com as variáveis necessárias (sem valores reais)
-5. :memo: **Registra a trilha** do que foi aplicado no final do `STACK.md`
+3. :file_folder: **Cria starters** em `.vibe/starters/` — nunca edita o seu `src/`
+4. :thread: **Escreve o guia de integração** em `.vibe/starters/README.md` —
+   um checklist por starter; a sua IA integra com o seu consentimento e o
+   [`status`](status.md) cobra os passos pendentes
+5. :key: **Monta o `.env.example`** com as variáveis necessárias (sem valores reais)
+6. :memo: **Registra a trilha** do que foi aplicado no final do `STACK.md`
 
 ## O que é aplicado por categoria
 

@@ -5,6 +5,7 @@ Impede o projeto de apodrecer: dependências, runtime e automação.
 ```bash
 npx @vibeharness/cli doctor          # só o relatório
 npx @vibeharness/cli doctor --fix    # + gera .github/dependabot.yml
+npx @vibeharness/cli doctor --json   # checks estruturados (agentes/CI)
 ```
 
 ---

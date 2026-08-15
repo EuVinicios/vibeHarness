@@ -8,6 +8,7 @@ npx @vibeharness/cli pack
 npx @vibeharness/cli pack --include-tests
 npx @vibeharness/cli pack --exclude "e2e/**,fixtures/**"
 npx @vibeharness/cli pack --output contexto.md
+npx @vibeharness/cli pack --json
 ```
 
 ---

@@ -5,7 +5,12 @@ Gera a especificação, as regras para a sua IA e os mecanismos de segurança �
 ```bash
 npx @vibeharness/cli init          # interativo (recomendado)
 npx @vibeharness/cli init --yes    # padrões seguros, sem perguntas
+npx @vibeharness/cli init --json   # saída máquina-legível (agentes/CI)
 ```
+
+!!! tip "Com MCP instalado"
+    A tool `vibe_init` faz o mesmo — e o questionário de ameaça vira
+    perguntas da sua IA no chat (`pendingQuestions`).
 
 ---
 
@@ -22,7 +27,8 @@ npx @vibeharness/cli init --yes    # padrões seguros, sem perguntas
 
     - `CLAUDE.md`, `.cursorrules`, `.cursor/rules/`, `.windsurfrules`,
       `.github/copilot-instructions.md`, `AGENTS.md`
-    - Skill do Claude Code + slash commands (`/start`, `/prd`, `/plan`, `/pack`, `/audit`, `/doctor`)
+    - Skill do Claude Code + slash commands (`/status`, `/install`, `/prd`,
+      `/plan`, `/pack`, `/audit`, `/doctor`)
 
     As regras obrigam: validação de toda entrada, zero segredos hardcoded,
     defesa contra prompt injection, SQL parametrizado, RLS, TDD em rotas críticas.

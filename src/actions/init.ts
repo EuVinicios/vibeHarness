@@ -186,7 +186,7 @@ export async function initAction(opts: InitActionOptions = {}): Promise<ActionRe
   );
 
   await track(join('.claude', 'skills', 'vibeharness', 'SKILL.md'), skillMdTemplate(projectName));
-  const slashCommands: SlashCommandName[] = ['start', 'prd', 'plan', 'pack', 'audit', 'doctor'];
+  const slashCommands: SlashCommandName[] = ['status', 'install', 'prd', 'plan', 'pack', 'audit', 'doctor', 'start'];
   for (const cmd of slashCommands) {
     await track(join('.claude', 'commands', `${cmd}.md`), slashCommandTemplate(cmd));
   }

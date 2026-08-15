@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "vibe-harness": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@vibeharness/cli",
+        "mcp"
+      ]
+    }
+  }
+}

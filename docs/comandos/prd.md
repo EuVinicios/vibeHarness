@@ -6,6 +6,7 @@ Gera `.vibe/PRD.md`: a fonte de verdade que a sua IA lê **antes** de codar.
 npx @vibeharness/cli prd           # questionário interativo
 npx @vibeharness/cli prd --yes     # PRD com placeholders para preencher depois
 npx @vibeharness/cli prd --force   # sobrescreve um PRD.md existente
+npx @vibeharness/cli prd --json    # saída máquina-legível (agentes/CI)
 ```
 
 ---
@@ -31,5 +32,5 @@ npx @vibeharness/cli prd --force   # sobrescreve um PRD.md existente
 
 ---
 
-[:octicons-arrow-left-24: Anterior: `start`](start.md){ .md-button }
+[:octicons-arrow-left-24: Anterior: `install`](install.md){ .md-button }
 [:octicons-arrow-right-24: Próximo: `init`](init.md){ .md-button .md-button--primary }
