@@ -10,7 +10,15 @@
 npx @vibeharness/cli install
 ```
 
-O instalador detecta (ou pergunta) o seu cliente de IA e escreve tudo:
+O instalador detecta (ou pergunta) o seu cliente de IA e escreve tudo — e se
+você usa **vários** clientes (o comum), instale todos de uma vez:
+
+```bash
+npx @vibeharness/cli install cursor,opencode   # lista separada por vírgulas
+npx @vibeharness/cli install all               # todos os suportados
+```
+
+O que é escrito em cada cliente:
 
 1. **Arquivo de regras** do cliente (CLAUDE.md, `.cursor/rules`, AGENTS.md…)
 2. **Registro do servidor MCP** — mesclado na config do cliente, sem apagar servidores existentes

@@ -9,6 +9,18 @@ interface InstallOptions {
   json?: boolean;
 }
 
+function printChoices(detected: string[], available: { id: string; name: string; status: string }[]): void {
+  if (detected.length > 1) {
+    console.log(chalk.bold('  Detected in this project: ') + detected.join(', '));
+    console.log(chalk.dim(`  Install into all of them:  npx @vibeharness/cli install all`));
+  }
+  console.log(chalk.bold('  Available clients:'));
+  for (const a of available) {
+    console.log(`    ${a.id.padEnd(16)} ${a.name}${a.status === 'beta' ? chalk.yellow(' (beta)') : ''}`);
+  }
+  console.log(chalk.dim('  Multiple at once:  npx @vibeharness/cli install cursor,opencode\n'));
+}
+
 export async function installCommand(
   clientArg: string | undefined,
   opts: InstallOptions = {}
@@ -32,7 +44,8 @@ export async function installCommand(
       const answers = await askQuestions(first.pendingQuestions);
       client = answers.client as string;
     } catch {
-      console.log(chalk.yellow('\n  Selection skipped — re-run `install <client-id>` when ready.\n'));
+      console.log(chalk.yellow('\n  Selection skipped — pick one (or more) explicitly:\n'));
+      printChoices(first.data.detected, first.data.available);
       return;
     }
     first = await withStderrConsole(() => installAction({ client }));
@@ -40,6 +53,7 @@ export async function installCommand(
 
   if (!first.ok && first.pendingQuestions) {
     console.log(chalk.yellow(`\n  ⚠  ${first.summary}\n`));
+    printChoices(first.data.detected, first.data.available);
     return;
   }
 
@@ -53,5 +67,5 @@ export async function installCommand(
   for (const output of first.outputs ?? []) console.log(chalk.green(`  ✔  ${output}`));
   for (const note of first.notes ?? []) console.log(chalk.dim(`  ·  ${note}`));
 
-  console.log(chalk.bold.cyan('\n  👉 Open your AI client and say: "run vibe status" — it drives the whole harness.\n'));
+  console.log(chalk.bold.cyan('\n  👉 Open your AI client(s) and say: "run vibe status" — it drives the whole harness.\n'));
 }

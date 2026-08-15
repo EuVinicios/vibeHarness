@@ -220,4 +220,32 @@ describe('installAction (MCP config merge)', () => {
     expect(headless.ok).toBe(false);
     expect(headless.pendingQuestions?.[0].options?.length).toBeGreaterThanOrEqual(7);
   });
+
+  it('installs multiple clients at once (comma-separated and "all")', async () => {
+    const root = mkRoot();
+    const multi = await installAction({ client: 'cursor,opencode' });
+    expect(multi.ok).toBe(true);
+    expect(multi.data.installed).toEqual(['cursor', 'opencode']);
+    expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(root, 'opencode.json'))).toBe(true);
+    expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
+
+    const all = await installAction({ client: 'all' });
+    expect(all.ok).toBe(true);
+    expect(all.data.installed.length).toBeGreaterThanOrEqual(7);
+    expect(existsSync(join(root, '.mcp.json'))).toBe(true);
+    expect(existsSync(join(root, '.vscode', 'mcp.json'))).toBe(true);
+  });
+
+  it('offers "all" as first option when multiple clients are detected', async () => {
+    const root = mkRoot();
+    mkdirSync(join(root, '.cursor'), { recursive: true });
+    writeFileSync(join(root, '.cursor', 'mcp.json'), '{}', 'utf8');
+    writeFileSync(join(root, 'CLAUDE.md'), '', 'utf8');
+    writeFileSync(join(root, 'AGENTS.md'), '', 'utf8');
+    const result = await installAction({});
+    expect(result.ok).toBe(false);
+    expect(result.pendingQuestions?.[0].options?.[0].value).toBe('all');
+    expect(result.data.detected.sort()).toEqual(['claude-code', 'cursor', 'opencode'].sort());
+  });
 });

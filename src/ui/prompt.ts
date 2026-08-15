@@ -6,8 +6,28 @@ import type { Answers, QuestionDef } from '../actions/types.js';
  * front-end asks identical questions.
  */
 
+type PromptFn = (questions: unknown) => Promise<Answers>;
+
+/**
+ * enquirer is CJS (`module.exports = Enquirer`, with `.prompt` assigned at
+ * runtime) — Node's named-export detection cannot see it, so a bare
+ * `const { prompt } = await import('enquirer')` yields undefined in the ESM
+ * build. Resolve through the default export instead.
+ */
+async function getPrompt(): Promise<PromptFn> {
+  const mod = (await import('enquirer')) as unknown as {
+    prompt?: unknown;
+    default?: { prompt?: unknown };
+  };
+  const fn = mod.prompt ?? mod.default?.prompt;
+  if (typeof fn !== 'function') {
+    throw new Error('enquirer is unavailable in this environment');
+  }
+  return fn as PromptFn;
+}
+
 export async function askQuestions(defs: QuestionDef[]): Promise<Answers> {
-  const { prompt } = await import('enquirer');
+  const prompt = await getPrompt();
 
   const questions = defs.map((def) => {
     switch (def.kind) {
@@ -32,19 +52,14 @@ export async function askQuestions(defs: QuestionDef[]): Promise<Answers> {
     }
   });
 
-  return (await prompt<Answers>(questions as Parameters<typeof prompt>[0])) as Answers;
+  return prompt(questions);
 }
 
 export async function confirm(message: string, initial = true): Promise<boolean> {
-  const { prompt } = await import('enquirer');
+  const prompt = await getPrompt();
   try {
-    const { go } = await prompt<{ go: boolean }>({
-      type: 'confirm',
-      name: 'go',
-      message,
-      initial,
-    } as Parameters<typeof prompt>[0]);
-    return go;
+    const { go } = await prompt([{ type: 'confirm', name: 'go', message, initial }]);
+    return go === true;
   } catch {
     return false;
   }

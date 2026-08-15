@@ -190,9 +190,9 @@ export function buildServer(): McpServer {
     {
       title: 'Vibe install',
       description:
-        'One-command setup of an AI client: writes the client rules file and registers this MCP server in the client config. Without client, returns the list of supported clients to choose from (ask the user).',
+        'One-command setup of AI clients: writes the client rules file and registers this MCP server in the client config. Without client, returns the list of supported clients to choose from (ask the user). Accepts a single id, a comma-separated list (e.g. "cursor,opencode") or "all".',
       inputSchema: {
-        client: z.string().optional().describe('Client id (e.g. claude-code, cursor, opencode, vscode-copilot, windsurf, antigravity, qwen)'),
+        client: z.string().optional().describe('Client id(s): comma-separated list, "all", or one of claude-code, cursor, opencode, vscode-copilot, windsurf, antigravity, qwen'),
       },
     },
     async ({ client }) =>
