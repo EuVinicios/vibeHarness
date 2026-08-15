@@ -2,6 +2,8 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import fg from 'fast-glob';
 import {
   loadClientsCatalog,
@@ -102,14 +104,31 @@ async function readJsonIfExists(path: string): Promise<JsonRecord | null> {
   }
 }
 
+/** True when the current project is the vibe-harness package itself. */
+async function isSelfPackage(packageName: string): Promise<boolean> {
+  try {
+    const raw = await readFile(join(projectRoot(), 'package.json'), 'utf8');
+    return (JSON.parse(raw) as { name?: string }).name === packageName;
+  } catch {
+    return false;
+  }
+}
+
 /** Merge the vibe-harness server into the client's MCP config without clobbering existing servers. */
 async function mergeMcpConfig(
   catalog: ClientsCatalog,
-  client: ClientAdapter
-): Promise<{ path: string; created: boolean; merged: boolean }> {
+  client: ClientAdapter,
+  selfRepo: boolean
+): Promise<{ path: string; created: boolean; merged: boolean; selfRepo: boolean }> {
   const target = resolveTargetPath(client.mcp.path);
   const existing = (await readJsonIfExists(target)) ?? {};
-  const { command, args } = catalog.serverCommand;
+
+  // Inside the package's own repo `npx -y @vibeharness/cli mcp` exits 127 —
+  // npm exec resolves the package name against the local project, whose bin
+  // is not linked into node_modules/.bin. Run the local build directly.
+  const { command, args } = selfRepo
+    ? catalog.selfRepoCommand ?? catalog.serverCommand
+    : catalog.serverCommand;
 
   let root: JsonRecord;
   switch (client.mcp.format) {
@@ -137,7 +156,7 @@ async function mergeMcpConfig(
 
   const existedBefore = existsSync(target);
   await writeFileSafe(target, JSON.stringify(root, null, 2) + '\n', { overwrite: true, quiet: true });
-  return { path: client.mcp.path, created: !existedBefore, merged: existedBefore };
+  return { path: client.mcp.path, created: !existedBefore, merged: existedBefore, selfRepo };
 }
 
 async function buildRulesContent(client: ClientAdapter): Promise<string> {
@@ -176,7 +195,8 @@ async function installOne(
   catalog: ClientsCatalog,
   client: ClientAdapter,
   outputs: string[],
-  notes: string[]
+  notes: string[],
+  selfRepo: boolean
 ): Promise<void> {
   const rulesContent = await buildRulesContent(client);
   if (
@@ -188,11 +208,16 @@ async function installOne(
     outputs.push(client.rules.path);
   }
 
-  const mcp = await mergeMcpConfig(catalog, client);
+  const mcp = await mergeMcpConfig(catalog, client, selfRepo);
   outputs.push(mcp.path);
   notes.push(
     `${client.name}: MCP ${mcp.created ? 'config created' : 'merged'} (${mcp.path})`
   );
+  if (mcp.selfRepo) {
+    notes.push(
+      `${client.name}: self-install detected — registered the local dist build (npx cannot resolve this project's own bin)`
+    );
+  }
 
   for (const extra of client.extras) {
     if (extra.template === 'skill') {
@@ -217,6 +242,29 @@ async function installOne(
 
 function availableList(catalog: ClientsCatalog): { id: string; name: string; status: string }[] {
   return catalog.clients.map((c) => ({ id: c.id, name: c.name, status: c.status }));
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Prewarm the npx cache so the client's first MCP connection doesn't hit a
+ * cold package download — on slow networks that download can exceed the
+ * client's spawn timeout and leave the server showing as offline.
+ * Best-effort: never fails the install.
+ */
+async function warmNpxCache(catalog: ClientsCatalog, notes: string[]): Promise<void> {
+  const { command, args } = catalog.serverCommand;
+  if (command !== 'npx' || process.env.CI) return;
+  try {
+    await execFileAsync(command, [...args.filter((a) => a !== 'mcp'), '--version'], {
+      timeout: 120_000,
+    });
+    notes.push('MCP package pre-cached — the first connection should be instant.');
+  } catch {
+    notes.push(
+      'Could not pre-cache the MCP package (offline?) — the first connection may pause while npx downloads it.'
+    );
+  }
 }
 
 function choiceQuestion(catalog: ClientsCatalog, message: string, detectedIds: string[]): QuestionDef {
@@ -246,6 +294,9 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
   const available = availableList(catalog);
   const detected = await detectClients(catalog);
   const detectedIds = detected.map((d) => d.id);
+  const selfRepo = catalog.packageName
+    ? await isSelfPackage(catalog.packageName)
+    : false;
 
   // ---- Explicit selection: 'all', a single id, or a comma-separated list ----
   if (opts.client) {
@@ -284,8 +335,10 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
     const outputs: string[] = [];
     const notes: string[] = [];
     for (const target of targets) {
-      await installOne(catalog, target, outputs, notes);
+      await installOne(catalog, target, outputs, notes, selfRepo);
     }
+    if (!selfRepo) await warmNpxCache(catalog, notes);
+    notes.push('Verify after restart: the vibe-harness server should show connected (Qwen Code: /mcp).');
     const names = targets.map((t) => t.name).join(', ');
     return {
       ok: true,
@@ -306,7 +359,9 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
   if (detected.length === 1 && !opts.requireChoice) {
     const outputs: string[] = [];
     const notes: string[] = [];
-    await installOne(catalog, detected[0], outputs, notes);
+    await installOne(catalog, detected[0], outputs, notes, selfRepo);
+    if (!selfRepo) await warmNpxCache(catalog, notes);
+    notes.push('Verify after restart: the vibe-harness server should show connected (Qwen Code: /mcp).');
     return {
       ok: true,
       action: 'install',

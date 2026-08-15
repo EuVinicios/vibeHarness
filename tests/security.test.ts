@@ -58,6 +58,72 @@ describe('scanSecrets — secret patterns', () => {
   });
 });
 
+describe('scanSecrets — extended vendor coverage (v0.8.1)', () => {
+  it('detects AWS STS temporary keys (ASIA prefix)', async () => {
+    const stsKey = 'ASIA' + 'ABCDEFGHIJKLMNOP';
+    await writeFile(join(tmpDir, 'sts.ts'), `const k = "${stsKey}";\n`, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'sts.ts');
+    expect(f?.message).toContain('AWS STS');
+    expect(f?.severity).toBe('critical');
+  });
+
+  it('detects Hugging Face tokens', async () => {
+    const hfToken = 'hf_' + 'A'.repeat(30);
+    await writeFile(join(tmpDir, 'hf.ts'), `const t = "${hfToken}";\n`, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'hf.ts');
+    expect(f?.message).toContain('Hugging Face');
+    expect(f?.severity).toBe('critical');
+  });
+
+  it('detects Google Cloud service account private keys', async () => {
+    const sa = JSON.stringify({
+      type: 'service_account',
+      project_id: 'x',
+      private_key: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
+    });
+    await writeFile(join(tmpDir, 'sa.json'), sa, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'sa.json');
+    expect(f?.message).toContain('Google Cloud service account');
+    expect(f?.severity).toBe('critical');
+  });
+
+  it('triages mysql URIs with credentials like other database URIs', async () => {
+    await writeFile(
+      join(tmpDir, 'db.ts'),
+      `const db = "mysql://app_user:Sup3rS3cret@db.internal.example.com:3306/app";\n`,
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'db.ts');
+    expect(f?.message).toContain('MySQL URI');
+    expect(f?.triage).toBe('real');
+    expect(f?.severity).toBe('critical');
+  });
+});
+
+describe('scanSecrets — .gitignore check is line-based', () => {
+  it('accepts a real .env entry', async () => {
+    await writeFile(join(tmpDir, '.gitignore'), 'node_modules\n.env\n', 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.some((f) => f.message.includes('.env files are not excluded'))).toBe(false);
+  });
+
+  it('accepts glob forms (.env.*, **/.env)', async () => {
+    await writeFile(join(tmpDir, '.gitignore'), '.env.*\n**/.env\n', 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.some((f) => f.message.includes('.env files are not excluded'))).toBe(false);
+  });
+
+  it('does not accept a comment that merely mentions .env', async () => {
+    await writeFile(join(tmpDir, '.gitignore'), '# remember to ignore .env someday\nnode_modules\n', 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.some((f) => f.message.includes('.env files are not excluded'))).toBe(true);
+  });
+});
+
 describe('scanSecrets — insecure coding patterns', () => {
   it('flags wildcard CORS with credentials as critical', async () => {
     await writeFile(

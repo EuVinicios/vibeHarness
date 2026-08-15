@@ -31,7 +31,11 @@ export interface ClientExtra {
 
 export interface ClientsCatalog {
   serverName: string;
+  /** npm package that provides the server — used to detect self-installs. */
+  packageName: string;
   serverCommand: { command: string; args: string[] };
+  /** Server entry used when installing inside the package's own repo. */
+  selfRepoCommand: { command: string; args: string[] };
   clients: ClientAdapter[];
 }
 

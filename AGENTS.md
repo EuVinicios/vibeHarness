@@ -16,6 +16,15 @@ If the vibe-harness MCP server is connected, drive the harness via its tools
 embedded in it. When a tool returns `pendingQuestions`, ask the user in chat
 and call it again with the answers.
 
+### Developing vibe-harness itself (this repo)
+
+The project `.mcp.json` runs the server with `node ./dist/cli.js mcp` — NOT
+`npx -y @vibeharness/cli mcp`. Inside this repo the npx form fails with
+`command not found` because `npm exec` resolves the package name against the
+local project and its bin is not linked in `node_modules/.bin`. Keep the local
+build fresh: run `npm run build` after changing `src/` and restart the AI
+client if the MCP server shows offline.
+
 ## Commands
 
 | Task | Command |
