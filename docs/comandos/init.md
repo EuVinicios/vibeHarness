@@ -36,8 +36,11 @@ npx @vibeharness/cli init --json   # saída máquina-legível (agentes/CI)
 === "Segurança ativa"
 
     - `.github/workflows/security.yml` — gitleaks + CVE audit + gate de score no CI
+      (score ≥ 70 e zero findings críticos para o PR passar)
     - `.git/hooks/pre-commit` — bloqueia commit com chave de API
       (usa gitleaks quando instalado; senão, padrões embutidos)
+    - Nada de `.vibe/auditignore` por padrão — ele só existe se **você** criar,
+      para excluir falsos positivos da auditoria. Veja [Segurança & LGPD](../seguranca.md).
 
 ## O questionário de ameaça
 
