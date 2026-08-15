@@ -7,7 +7,12 @@ npx @vibeharness/cli audit                    # scorecard no terminal
 npx @vibeharness/cli audit --report           # + AUDIT_REPORT.md com prompts de correção
 npx @vibeharness/cli audit --site             # + relatório visual (.vibe/report/index.html)
 npx @vibeharness/cli audit --fail-under 80    # exit 1 se score < 80 (para CI)
+npx @vibeharness/cli audit --json             # findings + fix prompt em JSON
 ```
+
+!!! tip "Com MCP instalado"
+    A tool `vibe_audit` devolve os findings e o fix prompt sanitizado —
+    a sua IA corrige os próprios achados e re-audita até passar do gate.
 
 ---
 

@@ -39,7 +39,7 @@ npx @vibeharness/cli install
 
 | Ordem | Ação | Por quê |
 |------:|--------|---------|
-| 1 | Complete o que falta | O `start` mostra exatamente o que está pendente |
+| 1 | Complete o que falta | O `status` mostra exatamente o que está pendente |
 | 2 | [`pack`](comandos/pack.md) | Antes de sessões longas com a IA: contexto limpo, sem segredos |
 | 3 | [`audit`](comandos/audit.md) | Rode de tempos em tempos para não acumular dívida |
 
