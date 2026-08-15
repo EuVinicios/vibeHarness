@@ -60,11 +60,19 @@ Copilot. No final, um prompt em lote cobre todos os findings críticos/altos.
     Score **≥ 70** e **zero findings críticos**. O CI instalado pelo `init`
     bloqueia PRs abaixo do gate automaticamente.
 
-??? note "Falsos positivos"
-    Crie `.vibe/auditignore` (sintaxe gitignore) para excluir arquivos
-    sabidamente benignos — ex.: fixtures de teste com segredos falsos.
-    Projetos CLI/biblioteca não são cobrados por obrigações web
-    (banner de cookies, páginas de privacidade).
+??? note "Falsos positivos e triagem"
+    Desde a v0.8 os scanners **classificam** achados heurísticos antes de pontuar
+    (triagem `real | fixture | env-reference | ci-ephemeral | static-message`) e
+    rebaixam a severidade dos sabidamente benignos — sem nunca ocultá-los:
+
+    - Valor que é referência a variável (`API_KEY="$VAR"`) → `env-reference` (info)
+    - Placeholder óbvio (`'server-secret'`, `'test-key'`) → `fixture` (low)
+    - URI de banco local/CI (`postgres:postgres@localhost`) → `ci-ephemeral` (low)
+    - Palavra sensível em mensagem estática de log (sem dado) → `static-message` (info)
+
+    Para arquivos sabidamente benignos (fixtures com segredos falsos), crie
+    `.vibe/auditignore` (sintaxe gitignore). Projetos CLI/biblioteca não são
+    cobrados por obrigações web (banner de cookies, páginas de privacidade).
 
 ---
 

@@ -211,3 +211,38 @@ describe('executeApplyPlan', () => {
     }
   });
 });
+
+describe('detectResolvedCapabilities (v0.8)', () => {
+  it('detects auth/payments from deps and deploy from config files', async () => {
+    const { detectResolvedCapabilities } = await import('../src/core/apply.js');
+    const root = makeTmp();
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({
+        dependencies: { '@supabase/supabase-js': '^2.0.0', stripe: '^14.0.0' },
+      }),
+      'utf8'
+    );
+    writeFileSync(join(root, 'vercel.json'), '{}', 'utf8');
+    const resolved = detectResolvedCapabilities(root);
+    expect(resolved.auth).toBe('Supabase Auth');
+    expect(resolved.payments).toBe('Stripe');
+    expect(resolved.deploy).toContain('Vercel');
+  });
+
+  it('buildApplyPlan skips categories already resolved by the existing stack', async () => {
+    const catalog = await loadCatalog();
+    const plan = buildApplyPlan(catalog!, {
+      projectType: 'saas',
+      hasAuth: true,
+      hasPayments: true,
+      installedDeps: new Set<string>(),
+      resolved: { auth: 'Supabase Auth', payments: null, deploy: 'Vercel (vercel.json)' },
+    });
+    const reasons = plan.skipped.map((s) => `${s.category}:${s.reason}`);
+    expect(reasons).toContain('auth:already resolved by Supabase Auth');
+    expect(reasons).toContain('deploy:already resolved by Vercel (vercel.json)');
+    expect(plan.items.map((i) => i.category)).not.toContain('auth');
+    expect(plan.items.map((i) => i.category)).not.toContain('deploy');
+  });
+});

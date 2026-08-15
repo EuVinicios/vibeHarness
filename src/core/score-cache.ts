@@ -13,6 +13,8 @@ export interface ScoreCache {
   max: number;
   grade: string;
   timestamp: string;
+  /** Per-section scores (v0.8+) — lets status/vibe_status show the breakdown. */
+  sections?: Record<string, { score: number; max: number }>;
 }
 
 const STALE_MS = 24 * 60 * 60 * 1000;
@@ -56,7 +58,8 @@ export async function writeScoreCache(
   score: number,
   max: number,
   grade: string,
-  root?: string
+  root?: string,
+  sections?: Record<string, { score: number; max: number }>
 ): Promise<void> {
   const path = cachePath(root);
   const cache: ScoreCache = {
@@ -64,6 +67,7 @@ export async function writeScoreCache(
     max,
     grade,
     timestamp: new Date().toISOString(),
+    ...(sections ? { sections } : {}),
   };
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(cache, null, 2) + '\n', 'utf8');

@@ -10,6 +10,7 @@ import { APPLY_RECIPES, type ApplyRecipe } from './recipes.js';
 import { detectPackageManager, type PackageManager } from './stage.js';
 import { writeFileSafe, readFileSafe, projectRoot } from '../utils/fs.js';
 import { securityWorkflowTemplate } from '../generators/security-workflow.js';
+import type { ResolvedCapabilities } from './resolved.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +20,12 @@ export interface ApplyContext {
   hasPayments: boolean;
   /** Names already present in package.json dependencies + devDependencies. */
   installedDeps: Set<string>;
+  /** Capabilities already solved by the existing stack (v0.8) — skip instead of recommending conflicts. */
+  resolved?: ResolvedCapabilities;
 }
+
+export type { ResolvedCapabilities } from './resolved.js';
+export { detectResolvedCapabilities } from './resolved.js';
 
 export interface PlannedItem {
   category: string;
@@ -95,6 +101,21 @@ export function buildApplyPlan(catalog: Catalog, ctx: ApplyContext): ApplyPlan {
   for (const category of APPLICABLE_CATEGORIES) {
     if (category === 'auth' && !ctx.hasAuth) continue;
     if (category === 'payments' && !ctx.hasPayments) continue;
+
+    // v0.8: never recommend a replacement for a capability the project
+    // already solved (Supabase Auth, Asaas, Vercel, …).
+    if (category === 'auth' && ctx.resolved?.auth) {
+      skipped.push({ category, reason: `already resolved by ${ctx.resolved.auth}` });
+      continue;
+    }
+    if (category === 'payments' && ctx.resolved?.payments) {
+      skipped.push({ category, reason: `already resolved by ${ctx.resolved.payments}` });
+      continue;
+    }
+    if (category === 'deploy' && ctx.resolved?.deploy) {
+      skipped.push({ category, reason: `already resolved by ${ctx.resolved.deploy}` });
+      continue;
+    }
 
     const primary = topEntries(catalog, category, 1)[0];
     if (!primary) continue;

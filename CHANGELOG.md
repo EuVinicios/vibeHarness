@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-15 — "Triage: menos ruído, mais sinal"
+
+Refinamentos nascidos de uma auditoria real (dogfooding num SaaS de verdade:
+score 32 → 79, 24 criticals que eram em maioria falsos positivos).
+
+### Added
+- **Triagem de achados** (`Finding.triage`): classificadores `real`, `fixture`,
+  `env-reference`, `ci-ephemeral` e `static-message` rebaixam a severidade do que é
+  sabidamente benigno — **sem nunca ocultar** um achado.
+  - Referência a variável de ambiente (`API_KEY="$VAR"`) → `info`.
+  - Placeholder óbvio (`'server-secret'`, `'test-key'`) → `low`.
+  - URI de banco local/CI (`postgres:postgres@localhost`) → `low`.
+  - Palavra sensível em mensagem estática de log (sem dado interpolado) → `info`.
+- **Stack já resolvida**: `plan`/`plan --apply` detectam capacidades que o projeto já
+  resolve (Supabase Auth, Stripe/Asaas, Vercel/Netlify/Fly…) e **param de recomendar
+  substitutos conflitantes**; o `.vibe/STACK.md` declara o que foi pulado e por quê.
+- **Score por seção** no cache de auditoria, visível em `status` e `status --json`.
+- **DSR além de HTTP**: o scanner LGPD reconhece `supabase.rpc('delete_own_account')` /
+  `export_user_data` e funções SQL equivalentes como evidência de exclusão/exportação.
+- **Página "Ferramentas validadas"** (`docs/ferramentas-validadas.md`), gerada por
+  `npm run docs:tools`: declara tudo que o CLI roda, o que o `--apply` instala e o que
+  é só recomendação.
+
+### Changed
+- PII em logs agora exige **dado dinâmico** (interpolado ou identificador) para pontuar
+  como `high`; mensagens estáticas são triadas e resumidas num único achado `info`.
+- Scoring de segurança diferencia `low` (−2) e `info` (−0) de `medium` (−5).
+
 ## [0.7.1] - 2026-08-15 — "Install fixes: interactive prompt + multi-client"
 
 ### Fixed

@@ -32,6 +32,86 @@ export const SECRET_PATTERNS: [RegExp, string][] = [
   [/postgresql:\/\/[^@\s]+:[^@\s]+@/, 'PostgreSQL URI with credentials'],
 ];
 
+/**
+ * Vendor/structural patterns — a match is a real incident regardless of
+ * context (test fixture or not). Never downgraded by triage.
+ */
+const VENDOR_LABELS = new Set([
+  'Stripe live secret key',
+  'Stripe live publishable key',
+  'AWS Access Key ID',
+  'GitHub token',
+  'Anthropic API key',
+  'OpenAI project API key',
+  'OpenAI API key',
+  'Google API key',
+  'Slack token',
+  'GitLab personal access token',
+  'SendGrid API key',
+  'Twilio API key',
+  'Private key',
+  'Hardcoded JWT',
+]);
+
+/** Generic assignment patterns with a capture group for the literal value (triage input). */
+const GENERIC_VALUE_PATTERNS: { label: string; re: RegExp }[] = [
+  { label: 'Hardcoded password', re: /password\s*=\s*(["'])([^"']{4,})\1/gi },
+  { label: 'Hardcoded API key', re: /api[_-]?key\s*[:=]\s*(["'])([^"']{8,})\1/gi },
+  { label: 'Hardcoded secret', re: /secret\s*[:=]\s*(["'])([^"']{8,})\1/gi },
+];
+
+/** Connection-URI patterns capturing user, password and host (triage input). */
+const DB_URI_VALUE_PATTERNS: { label: string; re: RegExp }[] = [
+  { label: 'MongoDB URI with credentials', re: /mongodb(?:\+srv)?:\/\/([^@\s"'`]+):([^@\s"'`]+)@([^\s"'`/]+)/g },
+  { label: 'PostgreSQL URI with credentials', re: /postgresql:\/\/([^@\s"'`]+):([^@\s"'`]+)@([^\s"'`/]+)/g },
+];
+
+/* ─── Triage heuristics (v0.8 — born from real dogfooding data) ──────────────
+ * Findings are NEVER hidden by triage; they are re-classified and downgraded
+ * so the vibecoder spends time on real incidents, not fixtures.             */
+
+/** Values that are pure variable references — the secret lives in the env, not in the code. */
+export function isEnvReference(value: string): boolean {
+  const v = value.trim();
+  return (
+    /^\$\{[^}]+\}$/.test(v) || // ${VAR} / ${env:VAR}
+    /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(v) || // $VAR (shell)
+    /^%[A-Za-z0-9_]+%$/.test(v) || // %VAR% (Windows)
+    /^process\.env\.[A-Za-z0-9_]+$/.test(v) ||
+    /^[A-Z_][A-Z0-9_]{3,}$/.test(v) // BARE_ENV_NAME as a value
+  );
+}
+
+const FAKE_VALUE_WORDS =
+  /(test|fake|dummy|example|sample|placeholder|change[-_]?me|mock|stub|fixture|foo|bar|baz|lorem|ipsum|xxx+|segredo|senha|noop|qwerty|admin|guest|not[-_]?a[-_]?)/i;
+
+/** Values that are almost certainly placeholders, not real credentials. */
+export function isFakeValue(value: string): boolean {
+  if (FAKE_VALUE_WORDS.test(value)) return true;
+  if (/^(.)\1+$/.test(value)) return true; // aaaaaaaa
+  // Names its own kind and is short — real secrets rarely do ("server-secret").
+  if (value.length < 32 && /(secret|password|passwd|token)/i.test(value)) return true;
+  return false;
+}
+
+/** Test/spec files and fixture directories. */
+export function isTestFile(relPath: string): boolean {
+  return (
+    /(^|\/)(tests?|__tests__|spec|specs|fixtures?)\//.test(relPath) ||
+    /\.(test|spec)\.[a-z]+$/.test(relPath) ||
+    /(^|\/)test_[^/]+\.py$/.test(relPath) ||
+    /(^|\/)conftest\.py$/.test(relPath)
+  );
+}
+
+const DEV_DB_PASSWORDS = new Set(['postgres', 'password', 'root', 'test', 'admin', 'user', '']);
+
+/** localhost + dev credentials = ephemeral CI/local container, not a leaked prod URI. */
+export function isEphemeralDbUri(password: string, host: string): boolean {
+  const local = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|::1)(:\d+)?$/i.test(host);
+  return local && DEV_DB_PASSWORDS.has(password.toLowerCase());
+}
+
 export const EXCLUDED_DIRS = [
   'node_modules', '.git', 'dist', 'build', '.next',
   '__pycache__', '.venv', 'venv', 'coverage',
@@ -87,21 +167,107 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     const rel = file.replace(projectRoot() + '/', '');
     const isCode = /\.(js|ts|jsx|tsx|py)$/i.test(file);
     if (isCode) codeFiles.push(file);
+    const inTestFile = isTestFile(rel);
 
     // Secret patterns — collect several per file (dedup by label, capped).
     const seenLabels = new Set<string>();
+    const pushFinding = (f: Finding): void => {
+      if (seenLabels.size >= MAX_FINDINGS_PER_FILE) return;
+      if (seenLabels.has(f.message)) return;
+      seenLabels.add(f.message);
+      findings.push(f);
+    };
+
+    // 1) Vendor/structural patterns — always critical, always 'real'.
     for (const [pattern, label] of SECRET_PATTERNS) {
-      if (seenLabels.size >= MAX_FINDINGS_PER_FILE) break;
+      if (!VENDOR_LABELS.has(label)) continue;
       if (pattern.test(content)) {
-        if (seenLabels.has(label)) continue;
-        seenLabels.add(label);
-        findings.push({
+        pushFinding({
           severity: 'critical',
           category: 'secrets',
           message: `Potential ${label} detected`,
           file: rel,
           fix: 'Move this value to an environment variable and add it to .gitignore. Never commit credentials.',
+          triage: 'real',
         });
+      }
+    }
+
+    // 2) Generic assignments — triage the literal value before scoring.
+    for (const { label, re } of GENERIC_VALUE_PATTERNS) {
+      re.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(content)) !== null) {
+        const value = match[2];
+        if (isEnvReference(value)) {
+          pushFinding({
+            severity: 'info',
+            category: 'secrets',
+            message: `${label} pattern matched a variable reference, not a literal (${value.slice(0, 40)})`,
+            file: rel,
+            fix: 'No action needed — the value comes from the environment. Verify the variable is provisioned securely.',
+            triage: 'env-reference',
+          });
+        } else if (isFakeValue(value)) {
+          pushFinding({
+            severity: 'low',
+            category: 'secrets',
+            message: `Potential ${label} looks like a placeholder (${value.slice(0, 40)})`,
+            file: rel,
+            fix: 'If this is a real credential, move it to an environment variable. If it is a fixture, add the file to .vibe/auditignore.',
+            triage: 'fixture',
+          });
+        } else {
+          pushFinding({
+            severity: inTestFile ? 'medium' : 'critical',
+            category: 'secrets',
+            message: `Potential ${label} detected${inTestFile ? ' in a test file' : ''}`,
+            file: rel,
+            fix: inTestFile
+              ? 'Test setup with a realistic-looking literal — prefer obviously-fake fixtures, or allowlist the file in .vibe/auditignore.'
+              : 'Move this value to an environment variable and add it to .gitignore. Never commit credentials.',
+            triage: inTestFile ? 'fixture' : 'real',
+          });
+        }
+        if (seenLabels.size >= MAX_FINDINGS_PER_FILE) break;
+      }
+    }
+
+    // 3) Connection URIs — triage env references and ephemeral CI databases.
+    for (const { label, re } of DB_URI_VALUE_PATTERNS) {
+      re.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(content)) !== null) {
+        const [, , password, host] = match;
+        if (isEnvReference(password)) {
+          pushFinding({
+            severity: 'info',
+            category: 'secrets',
+            message: `${label} uses an environment-variable password`,
+            file: rel,
+            fix: 'No action needed — credentials come from the environment.',
+            triage: 'env-reference',
+          });
+        } else if (isEphemeralDbUri(password, host)) {
+          pushFinding({
+            severity: 'low',
+            category: 'secrets',
+            message: `${label} points at a local/CI database (${host})`,
+            file: rel,
+            fix: 'Ephemeral dev/CI container credentials are low risk. If this URI ever points at a shared or prod database, move it to an environment variable.',
+            triage: 'ci-ephemeral',
+          });
+        } else {
+          pushFinding({
+            severity: 'critical',
+            category: 'secrets',
+            message: `Potential ${label} detected`,
+            file: rel,
+            fix: 'Move this value to an environment variable and add it to .gitignore. Never commit credentials.',
+            triage: 'real',
+          });
+        }
+        if (seenLabels.size >= MAX_FINDINGS_PER_FILE) break;
       }
     }
   }
@@ -202,7 +368,9 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
 
   const maxScore = 30;
   const deductions = findings.reduce(
-    (acc, f) => acc + (f.severity === 'critical' ? 20 : f.severity === 'high' ? 10 : 5),
+    (acc, f) =>
+      acc +
+      (f.severity === 'critical' ? 20 : f.severity === 'high' ? 10 : f.severity === 'medium' ? 5 : f.severity === 'low' ? 2 : 0),
     0
   );
   return { score: Math.max(0, maxScore - deductions), maxScore, findings };

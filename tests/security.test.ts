@@ -99,3 +99,82 @@ describe('scanSecrets — insecure coding patterns', () => {
     expect(result.findings.filter((f) => f.file === 'clean.ts')).toHaveLength(0);
   });
 });
+
+describe('scanSecrets — triage (v0.8)', () => {
+  it('downgrades env-variable references to info/env-reference', async () => {
+    await writeFile(
+      join(tmpDir, 'script.sh'),
+      'API_KEY="$VITE_SUPABASE_ANON_KEY"\n',
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'script.sh');
+    expect(f?.triage).toBe('env-reference');
+    expect(f?.severity).toBe('info');
+  });
+
+  it('downgrades obvious placeholders to low/fixture', async () => {
+    await writeFile(
+      join(tmpDir, 'conf.ts'),
+      `export const cfg = { secret: 'server-secret' };\n`,
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'conf.ts');
+    expect(f?.triage).toBe('fixture');
+    expect(f?.severity).toBe('low');
+  });
+
+  it('downgrades localhost CI database URIs to low/ci-ephemeral', async () => {
+    await writeFile(
+      join(tmpDir, 'ci.yml'),
+      'TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres\n',
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'ci.yml');
+    expect(f?.triage).toBe('ci-ephemeral');
+    expect(f?.severity).toBe('low');
+  });
+
+  it('keeps realistic-looking hardcoded secrets as critical/real', async () => {
+    await writeFile(
+      join(tmpDir, 'bad.ts'),
+      `const db = "postgresql://prod_user:S3nh4Real@db.prod.example.com:5432/app";\n`,
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'bad.ts');
+    expect(f?.triage).toBe('real');
+    expect(f?.severity).toBe('critical');
+  });
+
+  it('caps generic secrets in test files at medium/fixture', async () => {
+    await writeFile(
+      join(tmpDir, 'app.test.ts'),
+      `const opts = { secret: 'Kx9Qm2Vw8Zr4Tn6B' };\n`,
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'app.test.ts');
+    expect(f?.severity).toBe('medium');
+    expect(f?.triage).toBe('fixture');
+  });
+
+  it('vendor keys stay critical even in test files', async () => {
+    const awsKey = 'AKIA' + 'ABCDEFGHIJKLMNOP';
+    await writeFile(join(tmpDir, 't.test.ts'), `const k = "${awsKey}";\n`, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 't.test.ts');
+    expect(f?.severity).toBe('critical');
+    expect(f?.triage).toBe('real');
+  });
+
+  it('info/low findings deduct less than critical', async () => {
+    await writeFile(join(tmpDir, 'a.sh'), 'API_KEY="$SOME_VAR"\n', 'utf8');
+    const result = await scanSecrets();
+    // only an info finding (0 deduction) + possibly gitignore high
+    const secFindings = result.findings.filter((f) => f.category === 'secrets' && f.file === 'a.sh');
+    expect(secFindings.every((f) => f.severity === 'info')).toBe(true);
+  });
+});

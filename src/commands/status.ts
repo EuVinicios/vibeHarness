@@ -45,6 +45,27 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
     if (entry.recommended) console.log(chalk.dim(`       ${entry.why}`));
   }
 
+  if (d.score?.sections) {
+    const meta: Record<string, { emoji: string; name: string }> = {
+      security: { emoji: '🛡️', name: 'Security' },
+      dependencies: { emoji: '📦', name: 'Deps' },
+      lgpd: { emoji: '🇧🇷', name: 'LGPD' },
+      deadcode: { emoji: '🧹', name: 'Hygiene' },
+      database: { emoji: '🗄️', name: 'DB' },
+      infra: { emoji: '🏗️', name: 'Infra' },
+      accessibility: { emoji: '♿', name: 'A11y' },
+    };
+    const chips = Object.entries(d.score.sections).map(([key, s]) => {
+      const m = meta[key] ?? { emoji: '•', name: key };
+      const full = s.score >= s.max;
+      const low = s.max > 0 && s.score / s.max < 0.5;
+      const text = `${m.emoji} ${s.score}/${s.max}`;
+      return full ? chalk.green(text) : low ? chalk.red(text) : chalk.yellow(text);
+    });
+    console.log('\n' + chalk.bold('📊  Auditoria por seção:'));
+    console.log('  ' + chips.join(chalk.dim(' · ')));
+  }
+
   if (d.starters.pending) {
     console.log('\n' + chalk.bold('🧵  Starters pendentes de integração (.vibe/starters/):'));
     for (const step of d.starters.steps) {
