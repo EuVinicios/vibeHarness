@@ -79,8 +79,3 @@ export function scoreChip(score: number, max: number): string {
   const color = pct >= 0.8 ? colors.success : pct >= 0.6 ? colors.warn : colors.danger;
   return color(`${score}/${max} ${icons.trophy}`);
 }
-
-/** True when the environment supports colors — used to gate animations. */
-export function supportsFancyRender(): boolean {
-  return process.stdout.isTTY === true && process.env.NO_COLOR === undefined;
-}

@@ -1,10 +1,10 @@
 # Guia por estágio
 
 Uma pergunta define tudo: **em qual estágio o seu projeto está?**
-Este guia mostra o que fazer em cada um — ou deixe o [Conductor](comandos/start.md) conduzir:
+Este guia mostra o que fazer em cada um — ou deixe a sua IA conduzir via MCP:
 
 ```bash
-npx @vibeharness/cli
+npx @vibeharness/cli install
 ```
 
 ---
@@ -46,8 +46,8 @@ npx @vibeharness/cli
 !!! tip "Rotina recomendada"
     `pack` no início da sessão de trabalho → código com a IA → `audit` antes de cada PR.
 
-    Com o [Conductor](comandos/start.md), essa rotina vira o loop de uma tecla:
-    `Enter` copia o prompt → `V` valida o código que a IA gerou.
+    Com o MCP instalado, essa rotina vira conversa: a IA roda `vibe_pack`,
+    codifica e chama `vibe_audit` — corrigindo os próprios findings.
 
 ## :rocket: Lançando — revisão final antes de produção
 

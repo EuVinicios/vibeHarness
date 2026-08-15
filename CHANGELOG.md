@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-08-15 — "AI-native: your AI client is the UI"
+
+The interface inverts: instead of teaching the vibecoder a terminal workflow, the
+**AI client orchestrates the harness** through MCP tools and only comes to the
+human for decisions. One command installs everything; the rest is conversation.
+
+### Added
+- **`vibe-harness install [client]`** — one-command setup for your AI client:
+  writes the client rules file, merges the vibe-harness MCP server into the
+  client config (never clobbering existing servers) and installs extras
+  (skills/slash commands). Supported: Claude Code, Cursor, opencode, VS Code
+  Copilot, Windsurf, Antigravity (beta), Qwen Code (beta). Adapters are
+  declarative data in `registry/clients.json` — adding a client is a JSON
+  entry, not code.
+- **`vibe-harness mcp`** — stdio MCP server exposing 9 tools: `vibe_status`,
+  `vibe_init`, `vibe_prd`, `vibe_plan`, `vibe_pack`, `vibe_audit`,
+  `vibe_doctor`, `vibe_rules`, `vibe_install`. Tool descriptions embed the
+  lifecycle so any model can orchestrate it; questionnaires return as
+  `pendingQuestions` for the AI to ask in chat; audit returns findings +
+  sanitized batch fix prompt so the AI fixes its own findings.
+- **Headless action layer** (`src/actions/*`): every lifecycle step is now a
+  pure `run(opts) → ActionResult` (data + `pendingQuestions` + `nextStep` +
+  `outputs`). Commands are thin renderers; `--json` on every command for
+  agents and CI.
+- **`vibe-harness status`** (new default command) — non-interactive panel:
+  stage, lifecycle progress, cached score, pending starter wiring and a
+  ready-to-paste AI prompt.
+- **Starters wiring loop** — `plan --apply` writes `.vibe/starters/README.md`
+  with per-starter checkboxes; `status`/`vibe_status` show the checklist and
+  a wiring prompt until every step is done (closes the "review and wire" gap).
+- **Unified write policy** — generated files skip-if-exists everywhere;
+  `--force` to overwrite (previously `rules` silently overwrote).
+- New deps: `@modelcontextprotocol/sdk`, `zod`.
+
+### Changed
+- `start` is **deprecated** (kept for one release with a notice) — the guided
+  terminal flow remains for terminal-only users.
+- Doctor output is data-driven (`DoctorCheck[]`); audit refreshes the score
+  cache; `buildBatchFixPrompt` extracted from the report generator and reused
+  by the MCP audit tool.
+- Skill/AGENTS.md/slash-command templates updated for the MCP-first workflow
+  (`/status`, `/install` added).
+
+### Removed
+- Interactive Conductor cockpit (v0.6.0): `conductor/engine.ts`, `keys.ts`,
+  `clipboard.ts` and the single-key loop. The `ora` dependency is gone.
+
+### Migration notes
+- `vibe-harness` with no args now shows the status panel instead of the
+  cockpit. `vibe-harness start` still works (deprecated).
+- AI clients: re-run `npx @vibeharness/cli install` to register the MCP
+  server and refresh rules/skills.
+
 ## [0.6.0] - 2026-08-14 — "The Interactive Conductor"
 
 VibeHarness becomes a **zero-key production conductor**: running `vibe-harness`

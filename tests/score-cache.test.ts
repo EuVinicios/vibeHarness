@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readScoreCache, readFreshScoreCache, writeScoreCache, isStale } from '../src/conductor/score-cache.js';
+import { readScoreCache, readFreshScoreCache, writeScoreCache, isStale } from '../src/core/score-cache.js';
 
 describe('score-cache', () => {
   const tmpDirs: string[] = [];

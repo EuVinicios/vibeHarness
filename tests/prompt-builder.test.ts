@@ -5,7 +5,7 @@ import {
   buildPrompt,
   buildFixPrompt,
   loadConstitutionLaws,
-} from '../src/conductor/prompt-builder.js';
+} from '../src/core/prompt-builder.js';
 import type { ProjectState } from '../src/core/stage.js';
 
 const baseState: ProjectState = {

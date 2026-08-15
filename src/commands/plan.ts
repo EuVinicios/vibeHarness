@@ -1,189 +1,82 @@
 import chalk from 'chalk';
-import ora from 'ora';
-import { join } from 'node:path';
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { banner, writeFileSafe, detectStack, projectRoot, getProjectName } from '../utils/fs.js';
-import { loadCatalog, isCatalogStale, catalogViolations } from '../registry/index.js';
-import { stackPlanTemplate, type StackPlanInput } from '../generators/stack-plan.js';
-import {
-  buildApplyPlan,
-  executeApplyPlan,
-  readInstalledDeps,
-  renderApplyPlan,
-  appendApplyTrail,
-} from '../core/apply.js';
+import { planAction } from '../actions/plan.js';
+import { PROJECT_TYPE_QUESTION } from '../actions/questions.js';
+import { askQuestions, confirm } from '../ui/prompt.js';
+import { banner } from '../utils/fs.js';
+import { printJson, withStderrConsole } from '../utils/headless.js';
 
 interface PlanOptions {
   yes?: boolean;
   force?: boolean;
   type?: string;
   apply?: boolean;
-}
-
-const PROJECT_TYPES = ['fullstack-web', 'api', 'landing', 'saas'] as const;
-type ProjectType = (typeof PROJECT_TYPES)[number];
-
-async function askProjectType(): Promise<ProjectType> {
-  const { prompt } = await import('enquirer');
-  const { projectType } = await prompt<{ projectType: ProjectType }>({
-    type: 'select',
-    name: 'projectType',
-    message: '🧭  What kind of project is this?',
-    choices: [
-      { name: 'fullstack-web', message: '🌐 Fullstack web app' },
-      { name: 'saas', message: '💼 SaaS product (multi-tenant)' },
-      { name: 'api', message: '🔌 API / backend only' },
-      { name: 'landing', message: '📄 Landing / content site' },
-    ],
-  } as Parameters<typeof prompt>[0]);
-  return projectType;
-}
-
-interface StoredThreatModel {
-  hasPayments?: boolean;
-  hasAuth?: boolean;
-  hasSensitiveData?: boolean;
-}
-
-async function readThreatModel(): Promise<StoredThreatModel | null> {
-  const path = join(projectRoot(), '.vibe', 'threat-model.json');
-  if (!existsSync(path)) return null;
-  try {
-    const parsed = JSON.parse(await readFile(path, 'utf8')) as StoredThreatModel;
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new Error('not an object');
-    }
-    return parsed;
-  } catch {
-    // Fail loud: a silently-ignored threat model would generate a stack plan
-    // without auth/payments guardrails — the user must know why.
-    console.log(chalk.yellow('  ⚠  .vibe/threat-model.json is INVALID (parse error) — ignored.'));
-    console.log(chalk.yellow('     Re-run `npx @vibeharness/cli init` to regenerate it before relying on the plan.'));
-    return null;
-  }
+  json?: boolean;
 }
 
 export async function planCommand(opts: PlanOptions): Promise<void> {
+  if (opts.json) {
+    const result = await withStderrConsole(() =>
+      planAction({ projectType: opts.type, apply: opts.apply, yes: true, force: opts.force })
+    );
+    printJson(result);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+
   banner('VibeHarness · PLAN');
 
-  const spinner = ora('Loading curated registry…').start();
-  const catalog = await loadCatalog();
-  if (!catalog) {
-    spinner.fail('Could not load registry/catalog.json — is the package installed correctly?');
-    process.exit(1);
-  }
-  const stale = isCatalogStale(catalog);
-  const violations = catalogViolations(catalog);
-  spinner.succeed(
-    `Registry loaded (last sync: ${catalog.lastSync})${stale ? chalk.yellow(' — stale, > 30 days') : ''}`
-  );
-  if (violations.length > 0) {
-    console.log(chalk.yellow(`  ⚠  ${violations.length} registry entr(y|ies) violate curation criteria:`));
-    for (const v of violations.slice(0, 5)) console.log(chalk.yellow(`     - ${v}`));
-    console.log(chalk.dim('     Recommendations below may be outdated — verify before adopting.'));
-  }
-
-  const stack = await detectStack();
-  const projectName = await getProjectName();
-  const threatModel = await readThreatModel();
-  if (!threatModel) {
-    console.log(chalk.dim('  No .vibe/threat-model.json found — run `npx @vibeharness/cli init` for tailored rules.'));
-  }
-
-  let projectType: ProjectType;
-  if (opts.type && (PROJECT_TYPES as readonly string[]).includes(opts.type)) {
-    projectType = opts.type as ProjectType;
-  } else if (opts.yes) {
-    projectType = 'fullstack-web';
-  } else {
+  let projectType = opts.type;
+  if (!projectType && !opts.yes) {
     try {
-      projectType = await askProjectType();
+      const answers = await askQuestions([PROJECT_TYPE_QUESTION]);
+      projectType = answers.projectType as string;
     } catch {
       console.log(chalk.yellow('  Selection skipped — defaulting to fullstack-web.'));
-      projectType = 'fullstack-web';
     }
   }
 
-  const input: StackPlanInput = {
-    projectName,
-    projectType,
-    catalog,
-    catalogStale: stale,
-    threatModel: threatModel
-      ? {
-          hasPayments: threatModel.hasPayments ?? false,
-          hasAuth: threatModel.hasAuth ?? true,
-          hasSensitiveData: threatModel.hasSensitiveData ?? false,
-        }
-      : null,
-    detectedStack: stack,
-  };
-
-  const vibeDir = join(projectRoot(), '.vibe');
-  const stackPath = join(vibeDir, 'STACK.md');
-  const written = await writeFileSafe(stackPath, stackPlanTemplate(input), opts.force);
-
-  if (written && !opts.apply) {
-    console.log(chalk.dim([
-      '',
-      '  Next steps:',
-      '    1. Review .vibe/STACK.md and confirm each primary choice',
-      '    2. Or let VibeHarness do it: npx @vibeharness/cli plan --apply',
-      '    3. Copy accepted decisions into .vibe/SPEC.md (section 4)',
-      '    4. npx @vibeharness/cli doctor --fix → install Dependabot',
-    ].join('\n') + '\n'));
-    return;
+  if (opts.apply && !opts.yes) {
+    const go = await confirm('Review the plan in .vibe/STACK.md — apply it now?');
+    if (!go) {
+      console.log(chalk.dim('  Skipped — run again with `npx @vibeharness/cli plan --apply` when ready.\n'));
+      return;
+    }
   }
 
-  if (!opts.apply) return;
+  console.log('\n' + chalk.bold('🔧  Building the recommended stack…\n'));
 
-  // ---- Apply: install + configure the curated stack (never touches src/) ----
-  console.log('\n' + chalk.bold('🔧  Applying the recommended stack…\n'));
-
-  const applyPlan = buildApplyPlan(catalog, {
+  const result = await planAction({
     projectType,
-    hasAuth: threatModel?.hasAuth ?? true,
-    hasPayments: threatModel?.hasPayments ?? false,
-    installedDeps: readInstalledDeps(),
+    apply: opts.apply,
+    yes: opts.yes,
+    force: opts.force,
   });
 
-  if (applyPlan.items.length === 0) {
-    console.log(chalk.dim('  Nothing to apply — everything is already installed or recommendation-only.'));
-    for (const line of renderApplyPlan(applyPlan)) console.log(line);
+  if (!result.ok && result.pendingQuestions) {
+    console.log(chalk.yellow(`  ⚠  ${result.summary}`));
     return;
   }
 
-  console.log('  Apply plan:');
-  for (const line of renderApplyPlan(applyPlan)) console.log(line);
-  console.log(chalk.dim('\n  Installs dependencies, writes configs/starters. Never edits src/.\n'));
+  console.log(chalk.green(`  ✔  ${result.summary}`));
+  for (const note of result.notes ?? []) console.log(chalk.yellow(`  ⚠  ${note}`));
 
-  let go = true;
-  if (!opts.yes) {
-    try {
-      const { prompt } = await import('enquirer');
-      const answer = await prompt<{ go: boolean }>({
-        type: 'confirm',
-        name: 'go',
-        message: 'Apply this plan now?',
-        initial: true,
-      } as Parameters<typeof prompt>[0]);
-      go = answer.go;
-    } catch {
-      go = false;
+  if (result.data.planItems.length > 0 && !opts.apply) {
+    console.log(chalk.dim('\n  Ready to apply:'));
+    for (const item of result.data.planItems) {
+      console.log(`    ${item.category.padEnd(11)} ${item.name} — ${item.action}`);
     }
-  }
-  if (!go) {
-    console.log(chalk.dim('  Skipped — run again with `npx @vibeharness/cli plan --apply` when ready.\n'));
-    return;
+    console.log(chalk.dim('\n  Apply with: npx @vibeharness/cli plan --apply\n'));
   }
 
-  const result = await executeApplyPlan(applyPlan, { yes: opts.yes, projectName });
-
-  if (written || existsSync(stackPath)) {
-    await appendApplyTrail(stackPath, result);
-    console.log(chalk.green('  ✔  Apply trail appended to .vibe/STACK.md'));
+  if (opts.apply && (result.data.wiringInstructions?.length ?? 0) > 0) {
+    console.log('\n' + chalk.bold('🧵  Wiring instructions written to .vibe/starters/README.md:'));
+    for (const step of result.data.wiringInstructions ?? []) {
+      console.log(chalk.dim(`    - ${step}`));
+    }
+    console.log(
+      chalk.bold.cyan(
+        '\n  👉 Ask your AI assistant to "wire the VibeHarness starters" — it will integrate them with your consent.\n'
+      )
+    );
   }
-
-  console.log(chalk.bold.green('\n✅  Stack applied. Review .vibe/starters/ and wire the starters into your app.\n'));
 }

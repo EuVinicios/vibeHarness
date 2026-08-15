@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { runAudit } from '../src/audit/engine.js';
+import { runAudit } from '../src/core/orchestrator.js';
 
 // Override cwd so the audit scans a controlled tmp directory
 const originalCwd = process.cwd;

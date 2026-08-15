@@ -14,9 +14,9 @@ Transforma desenvolvimento caótico com IA em engenharia **segura, auditável e 
 
     ---
 
-    Não sabe por onde começar? O Conductor detecta o estágio do seu projeto, mostra o caminho e entrega prompts prontos para a sua IA.
+    Um comando registra o harness na sua IA — ela pergunta, planeja e executa o ciclo. Você só conversa.
 
-    [:octicons-arrow-right-24: Guia por estágio](guia-por-estagio.md)
+    [:octicons-arrow-right-24: Usando com a sua IA](usando-com-sua-ia.md)
 
 -   :rocket: **Para quem já está codando**
 
@@ -24,7 +24,7 @@ Transforma desenvolvimento caótico com IA em engenharia **segura, auditável e 
 
     Contexto sanitizado para a sua IA (sem vazar segredos), stack curada instalada automaticamente e regras de segurança ativas.
 
-    [:octicons-arrow-right-24: Comandos](comandos/start.md)
+    [:octicons-arrow-right-24: Comandos](comandos/status.md)
 
 -   :shield: **Para quem vai lançar**
 
@@ -41,21 +41,23 @@ Transforma desenvolvimento caótico com IA em engenharia **segura, auditável e 
 ## Comece em 30 segundos
 
 ```bash
-# No diretório do seu projeto — sem argumentos:
-npx @vibeharness/cli
+# No diretório do seu projeto:
+npx @vibeharness/cli install
 ```
 
-O **Conductor Interativo** abre o cockpit do projeto e conduz o ciclo:
+Escolha o seu cliente de IA, reinicie, aprove o servidor MCP — e converse:
 
-1. :airplane: **Mostra onde você está** — fase do projeto, score de prontidão e a próxima meta em duas frases amigáveis
-2. :content_copy: **Entrega o prompt pronto** — missão + critérios de aceite + leis da Constitution, copiado para o clipboard com `Enter`
-3. :zap: **Valida em milissegundos** — aperte `V` depois que a sua IA gerar o código; se falhar, o prompt de correção já está pronto
+1. :robot: **A IA pergunta no chat** — PRD, threat model, tipo de projeto (nada de decorar comandos)
+2. :hammer_and_wrench: **A IA executa o ciclo** — `prd → plan --apply → pack → audit`, instalando a stack curada e integrando os starters com o seu consentimento
+3. :zap: **A IA corrige a si mesma** — roda a auditoria, aplica o fix prompt sanitizado e re-audita até passar
 
-??? tip "Prefere ver o menu completo primeiro?"
-    Todos os comandos funcionam de forma independente:
+??? tip "Prefere o terminal?"
+    Todos os comandos funcionam de forma independente (e aceitam `--json`):
 
     | Fase | Comando | O que faz |
     |------|---------|-----------|
+    | :compass: Sempre | [`status`](comandos/status.md) | Painel: fase, ciclo, score + prompt pronto |
+    | :robot: Sempre | [`install`](comandos/install.md) | Registra o harness no seu cliente de IA |
     | :green_circle: Antes | [`prd`](comandos/prd.md) | Gera o documento de requisitos do produto |
     | :green_circle: Antes | [`init`](comandos/init.md) | Spec, regras de IA, hook anti-segredos, CI de segurança |
     | :green_circle: Antes | [`plan --apply`](comandos/plan.md) | Recomenda a stack **e já instala/configura tudo** |
@@ -78,8 +80,8 @@ O **Conductor Interativo** abre o cockpit do projeto e conduz o ciclo:
 
     ---
 
-    O Conductor não consome IA — ele governa: prepara o contexto, gera o
-    prompt cirúrgico para você colar na **sua** IA e valida o resultado localmente.
+    O VibeHarness não consome IA — ele governa: prepara o contexto, entrega
+    tools MCP para a **sua** IA orquestrar o ciclo e valida o resultado localmente.
 
 -   :lock: **Segurança em 5 camadas**
 

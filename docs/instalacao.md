@@ -16,27 +16,23 @@ Verifique com:
 node --version
 ```
 
-## Uso recomendado: o Conductor Interativo
+## Uso recomendado: instale na sua IA
 
 No diretório do seu projeto:
 
 ```bash
-npx @vibeharness/cli
+npx @vibeharness/cli install
 ```
 
-É só isso. O Conductor abre o cockpit e conduz o ciclo em um loop fechado:
+É só isso. O instalador registra o harness no seu cliente de IA (regras +
+servidor MCP + skills) — depois de reiniciar o cliente e aprovar o servidor,
+**a própria IA orquestra o ciclo** (`prd → init → plan --apply → pack →
+audit → doctor`) e corrige os próprios achados. Veja
+[Usando com a sua IA](usando-com-sua-ia.md).
 
-1. Explica onde o projeto está e qual a próxima meta
-2. Gera o **prompt cirúrgico** — `Enter` copia para o clipboard
-3. Você cola na sua IA (Cursor, Claude Code, Copilot…) e recebe o código
-4. `V` valida localmente em milissegundos; se falhar, o prompt de correção já vem pronto
-
-Na primeira execução em um projeto novo, o ciclo completo é:
-`prd → init → plan --apply → pack → audit → doctor`.
-
-!!! note "Sem terminal interativo (CI, pipes)?"
-    Use `npx @vibeharness/cli start --yes` — infere o estágio e executa os
-    passos com defaults seguros.
+!!! note "Prefere terminal?"
+    `npx @vibeharness/cli status` mostra o painel com o próximo passo; todos
+    os comandos aceitam `--json` para scripts e CI.
 
 ## Uso direto (para quem já conhece)
 
@@ -49,17 +45,20 @@ npx @vibeharness/cli audit --report
 npx @vibeharness/cli doctor --fix
 ```
 
-## Com a sua IA (Skill)
+## Com a sua IA (MCP + Skill)
 
-O `init` instala automaticamente a camada de skill — a sua IA passa a dirigir o CLI sozinha:
+O `install` registra o servidor MCP e a camada de skill — a sua IA passa a dirigir o CLI sozinha:
 
 | Ferramenta | O que é instalado |
 |------------|-------------------|
-| Claude Code | Skill + slash commands (`/start`, `/prd`, `/plan`, `/pack`, `/audit`, `/doctor`) |
-| Cursor / Windsurf / Copilot | Arquivos de regras com os guardrails de segurança |
-| opencode / Codex | `AGENTS.md` com o fluxo completo |
+| Claude Code | MCP + skill + slash commands (`/status`, `/install`, `/prd`, `/plan`, `/pack`, `/audit`, `/doctor`) |
+| Cursor | MCP (`.cursor/mcp.json`) + regras |
+| opencode | MCP (`opencode.json`) + `AGENTS.md` |
+| VS Code Copilot | MCP (`.vscode/mcp.json`) + instruções |
+| Windsurf | MCP (config global) + regras |
+| Antigravity / Qwen | MCP + `AGENTS.md` (beta) |
 
-Dentro do Claude Code, basta pedir: **"/start"** — ou simplesmente dizer *"não sei por onde começar"*.
+Dentro do cliente, basta pedir: **"rode vibe status"** — ou simplesmente dizer *"quero um app de X"*.
 
 !!! warning "Sobre o nome do pacote"
     Use sempre **`@vibeharness/cli`** (com o escopo). O nome `vibe-harness` sem escopo
