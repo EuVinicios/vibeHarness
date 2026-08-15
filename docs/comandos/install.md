@@ -4,13 +4,20 @@ Um comando para registrar o harness no seu cliente de IA: regras + servidor MCP
 + skills, sem editar nada manualmente.
 
 ```bash
-npx @vibeharness/cli install              # detecta (ou pergunta) o cliente
-npx @vibeharness/cli install claude-code  # explícito
-npx @vibeharness/cli install --json       # saída máquina-legível
+npx @vibeharness/cli install                    # detecta (ou pergunta) o cliente
+npx @vibeharness/cli install claude-code        # explícito
+npx @vibeharness/cli install cursor,opencode    # vários de uma vez
+npx @vibeharness/cli install all                # todos os suportados
+npx @vibeharness/cli install --json             # saída máquina-legível
 ```
 
 Clientes: `claude-code`, `cursor`, `opencode`, `vscode-copilot`, `windsurf`,
 `antigravity` (beta), `qwen` (beta).
+
+!!! tip "Usa mais de um cliente?"
+    Se o projeto tiver sinais de vários clientes, a seleção interativa oferece
+    **"Todos os detectados"** como primeira opção — ou passe a lista separada
+    por vírgulas direto no comando.
 
 ---
 

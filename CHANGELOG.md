@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-08-15 — "Install fixes: interactive prompt + multi-client"
+
+### Fixed
+- **Interactive prompts were broken in the published package** — the ESM build
+  imported `prompt` as a named export of the CJS `enquirer` module, which Node
+  cannot detect (`prompt is not a function`), so every questionnaire fell
+  through to the skip path. Resolved via default-export interop in `ui/prompt.ts`
+  (the single enquirer surface).
+
+### Added
+- **Multi-client install** — most vibecoders use more than one AI client:
+  `install all`, `install cursor,opencode` (comma-separated), and a
+  "Todos os detectados" option in the interactive selection when several
+  clients are detected.
+- When the interactive selection is skipped (non-TTY), the CLI now lists the
+  detected clients and every available client id instead of leaving the user
+  stranded.
+
 ## [0.7.0] - 2026-08-15 — "AI-native: your AI client is the UI"
 
 The interface inverts: instead of teaching the vibecoder a terminal workflow, the

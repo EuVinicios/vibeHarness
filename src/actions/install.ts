@@ -23,24 +23,26 @@ import {
 import type { ActionResult, QuestionDef } from './types.js';
 
 /**
- * `vibe-harness install` — one-command setup for an AI client (v0.7).
- * Writes the client's rules file, merges the vibe-harness MCP server into the
- * client's config (never clobbering other servers) and installs extras
+ * `vibe-harness install` — one-command setup for AI clients (v0.7).
+ * Writes each client's rules file, merges the vibe-harness MCP server into
+ * the client's config (never clobbering other servers) and installs extras
  * (skills/slash commands). Adapters are data (registry/clients.json).
+ *
+ * Accepts a single id (`cursor`), a comma-separated list (`cursor,opencode`)
+ * or `all` — most vibecoders use more than one client.
  */
 
 export interface InstallActionOptions {
   client?: string;
   /** Headless: without client return the choice question instead of detecting. */
   requireChoice?: boolean;
-  all?: boolean;
 }
 
 export interface InstallActionData {
-  client: ClientAdapter | null;
+  installed: string[];
   detected: string[];
   available: { id: string; name: string; status: string }[];
-  mcpConfigPath?: string;
+  mcpConfigPaths: string[];
 }
 
 async function readThreatModel(): Promise<{
@@ -170,10 +172,12 @@ async function buildRulesContent(client: ClientAdapter): Promise<string> {
   }
 }
 
-async function installClient(catalog: ClientsCatalog, client: ClientAdapter): Promise<ActionResult<InstallActionData>> {
-  const outputs: string[] = [];
-  const notes: string[] = [];
-
+async function installOne(
+  catalog: ClientsCatalog,
+  client: ClientAdapter,
+  outputs: string[],
+  notes: string[]
+): Promise<void> {
   const rulesContent = await buildRulesContent(client);
   if (
     await writeFileSafe(resolveTargetPath(client.rules.path), rulesContent, {
@@ -186,7 +190,9 @@ async function installClient(catalog: ClientsCatalog, client: ClientAdapter): Pr
 
   const mcp = await mergeMcpConfig(catalog, client);
   outputs.push(mcp.path);
-  notes.push(mcp.created ? `MCP config created (${mcp.path})` : `MCP server merged into existing ${mcp.path}`);
+  notes.push(
+    `${client.name}: MCP ${mcp.created ? 'config created' : 'merged'} (${mcp.path})`
+  );
 
   for (const extra of client.extras) {
     if (extra.template === 'skill') {
@@ -207,20 +213,23 @@ async function installClient(catalog: ClientsCatalog, client: ClientAdapter): Pr
   if (client.status === 'beta') {
     notes.push(`${client.name} adapter is beta — verify the MCP server appears in the client settings (${client.docs})`);
   }
+}
 
-  return {
-    ok: true,
-    action: 'install',
-    summary: `${client.name} configured: rules written, MCP server "${catalog.serverName}" registered. Restart the client and approve the server, then ask it to "run vibe status".`,
-    data: {
-      client,
-      detected: [client.id],
-      available: catalog.clients.map((c) => ({ id: c.id, name: c.name, status: c.status })),
-      mcpConfigPath: mcp.path,
-    },
-    outputs,
-    notes,
-  };
+function availableList(catalog: ClientsCatalog): { id: string; name: string; status: string }[] {
+  return catalog.clients.map((c) => ({ id: c.id, name: c.name, status: c.status }));
+}
+
+function choiceQuestion(catalog: ClientsCatalog, message: string, detectedIds: string[]): QuestionDef {
+  const options = [
+    ...(detectedIds.length > 1
+      ? [{ value: 'all', label: `Todos os detectados (${detectedIds.join(', ')})` }]
+      : []),
+    ...catalog.clients.map((c) => ({
+      value: c.id,
+      label: `${c.name}${c.status === 'beta' ? ' (beta)' : ''}`,
+    })),
+  ];
+  return { id: 'client', kind: 'select', message, options };
 }
 
 export async function installAction(opts: InstallActionOptions = {}): Promise<ActionResult<InstallActionData>> {
@@ -230,67 +239,113 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
       ok: false,
       action: 'install',
       summary: 'Could not load registry/clients.json — is the package installed correctly?',
-      data: { client: null, detected: [], available: [] },
+      data: { installed: [], detected: [], available: [], mcpConfigPaths: [] },
     };
   }
 
-  const available = catalog.clients.map((c) => ({ id: c.id, name: c.name, status: c.status }));
+  const available = availableList(catalog);
+  const detected = await detectClients(catalog);
+  const detectedIds = detected.map((d) => d.id);
 
+  // ---- Explicit selection: 'all', a single id, or a comma-separated list ----
   if (opts.client) {
-    const client = catalog.clients.find((c) => c.id === opts.client);
-    if (!client) {
+    const wanted = opts.client
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    const targets =
+      wanted.includes('all')
+        ? catalog.clients
+        : wanted
+            .map((id) => catalog.clients.find((c) => c.id === id))
+            .filter((c): c is ClientAdapter => c !== undefined);
+
+    const unknown = wanted.filter(
+      (id) => id !== 'all' && !catalog.clients.some((c) => c.id === id)
+    );
+    if (unknown.length > 0) {
       return {
         ok: false,
         action: 'install',
-        summary: `Unknown client "${opts.client}". Available: ${available.map((a) => a.id).join(', ')}.`,
-        data: { client: null, detected: [], available },
+        summary: `Unknown client(s): ${unknown.join(', ')}. Available: ${available.map((a) => a.id).join(', ')} (or "all").`,
+        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
       };
     }
-    return installClient(catalog, client);
+    if (targets.length === 0) {
+      return {
+        ok: false,
+        action: 'install',
+        summary: 'No client selected.',
+        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
+      };
+    }
+
+    const outputs: string[] = [];
+    const notes: string[] = [];
+    for (const target of targets) {
+      await installOne(catalog, target, outputs, notes);
+    }
+    const names = targets.map((t) => t.name).join(', ');
+    return {
+      ok: true,
+      action: 'install',
+      summary: `${targets.length > 1 ? `${targets.length} clients` : names} configured. Restart each client, approve the MCP server, then ask it to "run vibe status".`,
+      data: {
+        installed: targets.map((t) => t.id),
+        detected: detectedIds,
+        available,
+        mcpConfigPaths: targets.map((t) => t.mcp.path),
+      },
+      outputs,
+      notes,
+    };
   }
 
-  if (opts.requireChoice) {
-    const question: QuestionDef = {
-      id: 'client',
-      kind: 'select',
-      message: 'Which AI client should vibe-harness be installed into?',
-      options: catalog.clients.map((c) => ({
-        value: c.id,
-        label: `${c.name}${c.status === 'beta' ? ' (beta)' : ''}`,
-      })),
+  // ---- No explicit choice ----
+  if (detected.length === 1 && !opts.requireChoice) {
+    const outputs: string[] = [];
+    const notes: string[] = [];
+    await installOne(catalog, detected[0], outputs, notes);
+    return {
+      ok: true,
+      action: 'install',
+      summary: `${detected[0].name} configured. Restart the client, approve the MCP server, then ask it to "run vibe status".`,
+      data: {
+        installed: [detected[0].id],
+        detected: detectedIds,
+        available,
+        mcpConfigPaths: [detected[0].mcp.path],
+      },
+      outputs,
+      notes,
     };
+  }
+
+  const question =
+    detected.length > 1
+      ? choiceQuestion(
+          catalog,
+          `Multiple AI clients detected (${detected.map((d) => d.name).join(', ')}). Install into which?`,
+          detectedIds
+        )
+      : choiceQuestion(catalog, 'No AI client detected yet. Which one do you use?', []);
+
+  if (opts.requireChoice) {
     return {
       ok: false,
       action: 'install',
-      summary: 'Client choice required — ask the user, then call again with the chosen id.',
-      data: { client: null, detected: [], available },
+      summary: 'Client choice required — ask the user, then call again with the chosen id(s) (comma-separated, or "all").',
+      data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
       pendingQuestions: [question],
     };
   }
 
-  // Auto-detect: exactly one match installs directly; multiple ask; none ask.
-  const detected = await detectClients(catalog);
-  if (detected.length === 1) {
-    return installClient(catalog, detected[0]);
-  }
-
-  const question: QuestionDef = {
-    id: 'client',
-    kind: 'select',
-    message:
-      detected.length > 1
-        ? `Multiple AI clients detected (${detected.map((d) => d.name).join(', ')}). Which one should vibe-harness be installed into?`
-        : 'No AI client detected yet. Which one do you use?',
-    options: catalog.clients.map((c) => ({
-      value: c.id,
-      label: `${c.name}${c.status === 'beta' ? ' (beta)' : ''}`,
-    })),
-  };
   return {
     ok: false,
     action: 'install',
     summary: detected.length > 1 ? 'Multiple clients detected — choose one.' : 'No client detected — choose one.',
-    data: { client: null, detected: detected.map((d) => d.id), available },
+    data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
     pendingQuestions: [question],
   };
 }
