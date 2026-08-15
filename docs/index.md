@@ -14,7 +14,7 @@ Transforma desenvolvimento caótico com IA em engenharia **segura, auditável e 
 
     ---
 
-    Não sabe por onde começar? Uma pergunta responde: o `start` detecta o estágio do seu projeto e executa os próximos passos com você.
+    Não sabe por onde começar? O Conductor detecta o estágio do seu projeto, mostra o caminho e entrega prompts prontos para a sua IA.
 
     [:octicons-arrow-right-24: Guia por estágio](guia-por-estagio.md)
 
@@ -41,15 +41,15 @@ Transforma desenvolvimento caótico com IA em engenharia **segura, auditável e 
 ## Comece em 30 segundos
 
 ```bash
-# No diretório do seu projeto:
-npx @vibeharness/cli start
+# No diretório do seu projeto — sem argumentos:
+npx @vibeharness/cli
 ```
 
-O `start` faz **uma única pergunta** — em qual estágio o projeto está — e então:
+O **Conductor Interativo** abre o cockpit do projeto e conduz o ciclo:
 
-1. :mag: Detecta o que já existe (PRD, spec, stack, auditoria…)
-2. :world_map: Mostra tudo o que o VibeHarness pode fazer por você
-3. :arrow_forward: Executa o próximo passo recomendado — e o próximo — até o ciclo completar
+1. :airplane: **Mostra onde você está** — fase do projeto, score de prontidão e a próxima meta em duas frases amigáveis
+2. :content_copy: **Entrega o prompt pronto** — missão + critérios de aceite + leis da Constitution, copiado para o clipboard com `Enter`
+3. :zap: **Valida em milissegundos** — aperte `V` depois que a sua IA gerar o código; se falhar, o prompt de correção já está pronto
 
 ??? tip "Prefere ver o menu completo primeiro?"
     Todos os comandos funcionam de forma independente:
@@ -73,6 +73,13 @@ O `start` faz **uma única pergunta** — em qual estágio o projeto está — e
 
     Stack recomendada é stack **instalada e configurada** (`plan --apply`).
     Documento de requisitos é documento **gerado** (`prd`). Nada de lista de links.
+
+-   :keyboard: **Zero chaves de API**
+
+    ---
+
+    O Conductor não consome IA — ele governa: prepara o contexto, gera o
+    prompt cirúrgico para você colar na **sua** IA e valida o resultado localmente.
 
 -   :lock: **Segurança em 5 camadas**
 

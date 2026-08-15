@@ -16,7 +16,7 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 
 | Phase | Command | What it does |
 |-------|---------|--------------|
-| 🧭 Any | `vibe-harness start` | **Guided entry point** — one question about your project stage, then it recommends and runs the next steps |
+| 🧭 Any | `vibe-harness` / `vibe-harness start` | **Interactive Conductor** — cockpit with stage status, one-key prompt copy, instant validation and guided next steps |
 | 🟢 Before coding | `vibe-harness prd` | Generates the Product Requirements Document (`.vibe/PRD.md`) |
 | 🟢 Before coding | `vibe-harness init` | Generates spec, LGPD policy, AI rules, agent skill, installs pre-commit hook |
 | 🟢 Before coding | `vibe-harness plan --apply` | Curated stack recommendation — **installs the dependencies and generates the configs for you** |
@@ -29,8 +29,8 @@ VibeHarness transforms chaotic AI-driven development into **secure, auditable, L
 ## 🚀 Quick Start
 
 ```bash
-# Don't know where to start? One command, one question:
-npx @vibeharness/cli start
+# Don't know where to start? Just run it — the Conductor cockpit opens:
+npx @vibeharness/cli
 
 # Or drive each phase yourself:
 npx @vibeharness/cli init        # foundation: spec, rules, hooks
@@ -48,21 +48,44 @@ npx @vibeharness/cli doctor --fix
 
 ---
 
-## 🧭 `vibe-harness start` — guided entry point
+## 🧭 `vibe-harness start` — the Interactive Conductor
 
-The abstraction built for vibecoders: **one question, full guidance**.
+The abstraction built for vibecoders: **zero keys, full guidance**. Running
+`vibe-harness` with no arguments (or `start`) opens the Conductor cockpit on
+a real terminal:
 
-`start` auto-detects the project state (which `.vibe/` artifacts exist, audit
-report, Dependabot, pre-commit hook…) and asks a single question — *where is
-your project right now?* (idea / starting / building / shipping / production).
+```text
+╭──────────────────────────────────────────────────────────────────╮
+│ 🛡️  VIBEHARNESS · Production Conductor v0.6.0                    │
+│ 📦 Projeto: meu-saas │ Fase: 💻 BUILDING │ Score: 85/100 🏆 [B] │
+╰──────────────────────────────────────────────────────────────────╯
+```
 
-Then it shows the full map of what VibeHarness can do, marks what is already
-done (✔), what is pending (○) and the recommended next step (★), and runs each
-step with your confirmation until the lifecycle is complete.
+The loop is closed and educational: it reads the repository state, explains
+in two friendly sentences where the project is and what the next goal is,
+shows a **surgical AI prompt** (mission + acceptance criteria + Constitution
+laws + context pointers) and validates generated code locally in
+milliseconds:
+
+| Key | Action |
+|-----|--------|
+| `↵ Enter` | 📋 Copy the ready prompt to the clipboard (paste into Cursor, Claude Code, Windsurf, Copilot, ChatGPT…) |
+| `V` | ⚡ Validate instantly — runs the local scanners and refreshes the score |
+| `A` | 📊 Full audit scorecard (7 pillars, grades A–F) |
+| `N` | ▶️ Run the next lifecycle step (init / prd / plan / pack / audit / doctor) |
+| `Q` | 🚪 Quit |
+
+When validation finds critical/high issues, the Conductor shows them with
+care and switches `Enter` to copy a **fix prompt** covering every finding —
+paste it, let your AI fix the code, press `V` again. Clean pass triggers the
+success celebration and the readiness score goes up.
+
+Non-interactive environments (CI, pipes) automatically fall back to the
+guided one-question flow; `--yes` keeps the fully scripted behaviour.
 
 ```bash
-vibe-harness start          # guided, one question
-vibe-harness start --yes    # infer the stage and run the recommended step
+vibe-harness            # interactive Conductor (default command)
+vibe-harness start --yes # non-interactive: infer stage, run steps with defaults
 ```
 
 Inside Claude Code, the same flow is available as the `/start` slash command

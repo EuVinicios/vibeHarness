@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import chalk from 'chalk';
+import { box } from '../ui/box.js';
 
 export async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
@@ -31,10 +32,7 @@ export async function readFileSafe(filePath: string): Promise<string | null> {
 }
 
 export function banner(text: string): void {
-  const line = '─'.repeat(text.length + 4);
-  console.log('\n' + chalk.cyan(line));
-  console.log(chalk.cyan('│ ') + chalk.bold.white(text) + chalk.cyan(' │'));
-  console.log(chalk.cyan(line) + '\n');
+  console.log('\n' + box([`🛡️  ${text}`], { color: chalk.cyan }) + '\n');
 }
 
 export function cwd(): string {

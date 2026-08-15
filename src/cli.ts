@@ -37,9 +37,9 @@ program
   .version(cliVersion);
 
 program
-  .command('start')
+  .command('start', { isDefault: true })
   .description(
-    'Guided entry point — one question about your project stage, then VibeHarness recommends and runs the next steps'
+    'Interactive Conductor — cockpit with stage status, one-key prompt copy, instant validation and guided next steps'
   )
   .option('--yes', 'Skip prompts: infer the stage and run the recommended step with defaults')
   .action(startCommand);

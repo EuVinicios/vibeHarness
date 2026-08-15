@@ -56,7 +56,7 @@ nav:
   - Instalação: instalacao.md
   - Guia por estágio: guia-por-estagio.md
   - Comandos:
-      - start (guiado): comandos/start.md
+      - start (Conductor): comandos/start.md
       - prd: comandos/prd.md
       - init: comandos/init.md
       - plan (--apply): comandos/plan.md

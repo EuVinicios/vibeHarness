@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-14 — "The Interactive Conductor"
+
+VibeHarness becomes a **zero-key production conductor**: running `vibe-harness`
+with no arguments now opens an interactive cockpit (Qwen/Antigravity-inspired)
+that guides the full lifecycle — surgical AI prompts on the clipboard, instant
+local validation and an educational, gamified feedback loop. **Zero new
+dependencies.**
+
+### Added
+- **Interactive Conductor** (`vibe-harness` / `start`, default command): a
+  closed loop that renders the project cockpit (project · stage · readiness
+  score + grade), explains in two friendly sentences where the project is and
+  what the next goal is, and reacts to single keys — `↵ Enter` copies the
+  surgical prompt to the clipboard, `V` validates instantly with the local
+  scanners, `A` opens the full audit scorecard, `N` runs the next lifecycle
+  step, `Q` quits. Failed validations switch `Enter` to a fix prompt covering
+  every critical/high finding; clean passes trigger the success celebration
+  and raise the cached score. Non-TTY environments fall back to the guided
+  flow automatically.
+- **Terminal design system** (`src/ui/`): rounded UTF-8 boxes (`╭─╮ ╰─╯`) with
+  emoji-aware width measurement (variation selectors, ZWJ sequences and
+  regional-indicator flags counted correctly; ANSI-safe hard wrapping keeps
+  borders aligned), a shared palette (cyan/electric-blue headers, emerald
+  success, amber recommendations, coral `CRIT`, dim details), status chips
+  (stage, score, grade A–F) and severity badges.
+- **Surgical prompt builder** (`src/conductor/prompt-builder.ts`): per-action
+  AI prompts embedding mission, acceptance criteria, the Constitution laws
+  parsed from `.vibe/CONSTITUTION.md` and pointers to PRD/SPEC/STACK/threat
+  model — all untrusted content sanitised through the existing anti
+  prompt-injection pipeline.
+- **Zero-dependency clipboard** (`src/conductor/clipboard.ts`): `pbcopy` /
+  `wl-copy` / `xclip` / `xsel` / `clip` with a `.vibe/prompt-last.txt`
+  file fallback — never throws, no new packages (Constitution Law 6).
+- **Readiness score cache** (`.vibe/.audit-cache.json`): the cockpit header
+  shows the latest score without re-running the full audit on every render;
+  `V` refreshes it. Entries expire after 24h.
+- **Guided flow translated to pt-BR** for consistency with the Conductor's
+  educational layer (LGPD-first audience).
+
+### Changed
+- `start` is now the default command: `vibe-harness` with no arguments opens
+  the Conductor on a TTY (help text otherwise unchanged).
+- All command banners and the audit/pack summaries render through the new
+  design system (same content, rounded cards).
+
+### Preserved
+- Every Phase 1–4 capability, command signature and generated artifact is
+  intact — the Conductor orchestrates them; it replaces nothing. Legacy
+  output surfaces keep their semantics for scripts and CI.
+- Self-audit after the refactor: **100/100 (Grade A)**, no critical findings;
+  164 tests green (up from 156), lint, typecheck and knip clean.
+
 ## [0.5.1] - 2026-08-14 — "Dogfooding hardening"
 
 VibeHarness audited itself with its own CLI (score went 97 → **100/100**) and every
