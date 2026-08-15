@@ -33,8 +33,15 @@ Clientes suportados:
 | opencode | :white_check_mark: estável | `opencode.json` |
 | VS Code Copilot | :white_check_mark: estável | `.vscode/mcp.json` |
 | Windsurf | :white_check_mark: estável | `~/.codeium/windsurf/mcp_config.json` (global) |
-| Antigravity | :warning: beta | `.mcp.json` na raiz |
+| Antigravity | :warning: beta | `.agents/mcp_config.json` (o Antigravity IDE não lê `.mcp.json`) |
 | Qwen Code | :warning: beta | `.qwen/settings.json` |
+
+??? warning "Instalando dentro do próprio repo do VibeHarness?"
+    O `install` detecta o self-install e registra o build local
+    (`node ./dist/cli.js mcp`) em vez de `npx`: dentro de um projeto cujo
+    `package.json` se declara `@vibeharness/cli`, o `npm exec` não resolve o
+    bin e o servidor sairia com erro 127. Rode `npm run build` sempre que
+    mudar o `src/`.
 
 ??? tip "Adicionar um cliente novo?"
     Os adaptadores são dados: basta acrescentar uma entrada em

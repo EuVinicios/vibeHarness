@@ -7,7 +7,7 @@
 
 import { readFile, writeFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, relative, extname } from 'node:path';
+import { join, relative, extname, resolve, dirname, sep } from 'node:path';
 import fg from 'fast-glob';
 import { projectRoot, ensureDir } from '../utils/fs.js';
 import { SECRET_PATTERNS, EXCLUDED_DIRS } from '../scanners/security.js';
@@ -19,7 +19,7 @@ const TEXT_EXTENSIONS = new Set([
   '.sql', '.graphql', '.gql',
   '.css', '.scss', '.sass', '.less',
   '.html', '.svelte', '.vue',
-  '.json', '.yaml', '.yml', '.toml', '.env.example',
+  '.json', '.yaml', '.yml', '.toml',
   '.md', '.mdx', '.txt',
   '.sh', '.bash', '.zsh',
 ]);
@@ -158,8 +158,13 @@ async function getArchitectureSummary(): Promise<string> {
 
 export async function packContext(opts: PackOptions = {}): Promise<PackResult> {
   const root = projectRoot();
-  const outputPath = opts.outputPath ?? join(root, '.vibe', 'CONTEXT.md');
-  await ensureDir(join(root, '.vibe'));
+  // Output stays inside the project: this action can be driven by an AI
+  // agent over MCP, so the requested path is not trusted input.
+  const requested = resolve(root, opts.outputPath ?? join(root, '.vibe', 'CONTEXT.md'));
+  const outputPath = (requested + sep).startsWith(root + sep)
+    ? requested
+    : join(root, '.vibe', 'CONTEXT.md');
+  await ensureDir(dirname(outputPath));
 
   const testExcludes = opts.includeTests
     ? []

@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-08-15 — "MCP online em todo lugar + hardening de segurança"
+
+### Fixed
+- **P0 — servidor MCP aparecia offline no Qwen Code e no Antigravity.** Causa
+  raiz dupla, comprovada por reprodução:
+  1. `npx -y @vibeharness/cli mcp` sai com exit `127` quando executado dentro de
+     um projeto cujo `package.json` se declara `@vibeharness/cli` (o `npm exec`
+     resolve o nome contra o projeto local, cujo bin não está linkado em
+     `node_modules/.bin`). Clientes MCP fazem spawn com cwd = raiz do projeto,
+     então o próprio repo do harness nunca conectava. O `install` agora detecta
+     self-install e registra o build local (`node ./dist/cli.js mcp`); o
+     `.mcp.json` do repo usa a mesma forma.
+  2. O adaptador Antigravity escrevia em `.mcp.json` — arquivo que o
+     Antigravity IDE **não lê**. Agora escreve em `.agents/mcp_config.json`
+     (path de projeto documentado em antigravity.google/docs/ide/mcp/).
+- **P1 — injeção de shell no `doctor`**: as chamadas `gh api` usavam `exec()`
+  com owner/repo/branch interpolados — input controlado por quem controla o
+  remote clonado ou o repositório no GitHub (branch default com `$()` passa nas
+  regras de ref do git). Agora: `execFile()` (argv, sem shell) + charset estrito
+  (`trustedGithubSlug`). `commandExists`, `npm audit` e `npm outdated` migrados
+  para o mesmo padrão.
+- **Falso-negativo silencioso no audit de dependências**: projetos pnpm/yarn/bun
+  pontuavam 10/10 sem findings porque só `npm audit` rodava (e falhava sem
+  package-lock). O audit agora segue o package manager do projeto e, quando não
+  consegue auditar, emite finding `info` explícito em vez de silêncio.
+- `serverInfo.version` no handshake MCP agora vem do `package.json` (o 0.8.0
+  reportava "0.7.0" — string hardcoded).
+- Checado de `.env` no `.gitignore` agora é por linha: um comentário citando
+  `.env` contava como proteção.
+
+### Added
+- Padrões de secret: AWS STS (`ASIA…`), Hugging Face (`hf_…`), chave privada de
+  service account GCP (`"private_key"` em JSON) e URIs MySQL com credenciais
+  (mesma triagem de Mongo/Postgres).
+- `install` pré-aquece o cache do npx para a primeira conexão MCP não pagar o
+  download frio (que pode estourar o timeout de spawn do cliente) e inclui nota
+  de verificação pós-restart.
+- Teste de regressão do handshake stdio: spawn do binário compilado com assert
+  de JSON-RPC puro no stdout — o ponto cego que deixou o P0 passar.
+
+### Changed
+- Packager confina a saída de `pack --output` / `vibe_pack` ao projeto (input
+  pode vir de agente de IA via MCP).
+
 ## [0.8.0] - 2026-08-15 — "Triage: menos ruído, mais sinal"
 
 Refinamentos nascidos de uma auditoria real (dogfooding num SaaS de verdade:

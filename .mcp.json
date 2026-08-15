@@ -1,10 +1,9 @@
 {
   "mcpServers": {
     "vibe-harness": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "@vibeharness/cli",
+        "./dist/cli.js",
         "mcp"
       ]
     }
