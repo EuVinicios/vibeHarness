@@ -1,10 +1,10 @@
 # Guia por estágio
 
 Uma pergunta define tudo: **em qual estágio o seu projeto está?**
-Este guia mostra o que fazer em cada um — ou deixe o [`start`](comandos/start.md) fazer por você:
+Este guia mostra o que fazer em cada um — ou deixe o [Conductor](comandos/start.md) conduzir:
 
 ```bash
-npx @vibeharness/cli start
+npx @vibeharness/cli
 ```
 
 ---
@@ -45,6 +45,9 @@ npx @vibeharness/cli start
 
 !!! tip "Rotina recomendada"
     `pack` no início da sessão de trabalho → código com a IA → `audit` antes de cada PR.
+
+    Com o [Conductor](comandos/start.md), essa rotina vira o loop de uma tecla:
+    `Enter` copia o prompt → `V` valida o código que a IA gerou.
 
 ## :rocket: Lançando — revisão final antes de produção
 

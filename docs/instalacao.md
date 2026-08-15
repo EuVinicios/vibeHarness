@@ -16,22 +16,27 @@ Verifique com:
 node --version
 ```
 
-## Uso recomendado: modo guiado
+## Uso recomendado: o Conductor Interativo
 
 No diretório do seu projeto:
 
 ```bash
-npx @vibeharness/cli start
+npx @vibeharness/cli
 ```
 
-É só isso. O `start`:
+É só isso. O Conductor abre o cockpit e conduz o ciclo em um loop fechado:
 
-1. Pergunta **uma vez** em qual estágio o projeto está
-2. Detecta o que já existe
-3. Executa com você cada próximo passo, na ordem certa
+1. Explica onde o projeto está e qual a próxima meta
+2. Gera o **prompt cirúrgico** — `Enter` copia para o clipboard
+3. Você cola na sua IA (Cursor, Claude Code, Copilot…) e recebe o código
+4. `V` valida localmente em milissegundos; se falhar, o prompt de correção já vem pronto
 
-Na primeira execução em um projeto novo, o fluxo completo é:
+Na primeira execução em um projeto novo, o ciclo completo é:
 `prd → init → plan --apply → pack → audit → doctor`.
+
+!!! note "Sem terminal interativo (CI, pipes)?"
+    Use `npx @vibeharness/cli start --yes` — infere o estágio e executa os
+    passos com defaults seguros.
 
 ## Uso direto (para quem já conhece)
 
