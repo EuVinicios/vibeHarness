@@ -4,7 +4,8 @@ import globals from 'globals';
 
 export default tseslint.config(
   // site/ is a static GitHub Pages landing page with browser globals — not part of the TS build.
-  { ignores: ['dist/', 'node_modules/', 'coverage/', '.vibe/', 'site/'] },
+  // docs-build/ is local mkdocs output (gitignored) — vendor JS, never lint it.
+  { ignores: ['dist/', 'node_modules/', 'coverage/', '.vibe/', 'site/', 'docs-build/'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

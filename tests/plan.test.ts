@@ -123,6 +123,21 @@ describe('stackPlanTemplate', () => {
     expect(md).toContain('Guardrails');
   });
 
+  it('renders the curated Linting & Formatting section (v0.8.3)', async () => {
+    const catalog = await loadCatalog();
+    const md = stackPlanTemplate({
+      projectName: 'demo',
+      projectType: 'fullstack-web',
+      catalog: catalog!,
+      catalogStale: false,
+      threatModel: null,
+      detectedStack: [],
+    });
+    expect(md).toContain('Linting & Formatting');
+    expect(md).toContain('ESLint');
+    expect(md).toContain('Prettier');
+  });
+
   it('omits auth/payments sections when the threat model excludes them', async () => {
     const catalog = await loadCatalog();
     const md = stackPlanTemplate({

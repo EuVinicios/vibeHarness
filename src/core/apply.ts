@@ -61,6 +61,7 @@ const APPLICABLE_CATEGORIES = [
   'database',
   'auth',
   'payments',
+  'linting',
   'testing',
   'security',
   'mcp',
@@ -104,6 +105,12 @@ export function isAllowedRecipePath(path: string): boolean {
 const TESTING_PRIMARY_REPO = 'vitest-dev/vitest';
 const TESTING_E2E_REPO = 'microsoft/playwright';
 
+/** Linting applies the pair: ESLint (correctness/security rules) + Prettier
+ * (formatting). Star-order alone would pick Prettier and leave the linter —
+ * the half that actually catches problems — out of the plan. */
+const LINTING_PRIMARY_REPO = 'eslint/eslint';
+const LINTING_FORMAT_REPO = 'prettier/prettier';
+
 export function buildApplyPlan(catalog: Catalog, ctx: ApplyContext): ApplyPlan {
   const items: PlannedItem[] = [];
   const skipped: SkippedItem[] = [];
@@ -135,7 +142,12 @@ export function buildApplyPlan(catalog: Catalog, ctx: ApplyContext): ApplyPlan {
           [TESTING_PRIMARY_REPO, TESTING_E2E_REPO]
             .map((repo) => (catalog.categories['testing'] ?? []).find((e) => e.repo === repo))
             .filter((e): e is CatalogEntry => Boolean(e))
-        : topEntries(catalog, category, 1);
+        : category === 'linting'
+          ? // Linter + formatter are complementary — install both.
+            [LINTING_PRIMARY_REPO, LINTING_FORMAT_REPO]
+              .map((repo) => (catalog.categories['linting'] ?? []).find((e) => e.repo === repo))
+              .filter((e): e is CatalogEntry => Boolean(e))
+          : topEntries(catalog, category, 1);
 
     for (const entry of candidates) {
       const recipe = APPLY_RECIPES[entry.repo];

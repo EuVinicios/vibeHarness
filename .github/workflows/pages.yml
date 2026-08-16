@@ -25,9 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        # actions/checkout@v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Pages
+        # actions/configure-pages@v5.0.0
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
 
       # ubuntu-latest ships Python 3 + pip — no setup action needed.
@@ -41,6 +43,7 @@ jobs:
           mkdocs build --strict --clean --site-dir pages-staging/docs
 
       - name: Upload artifact
+        # actions/upload-pages-artifact@v4.0.0
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
         with:
           path: pages-staging
@@ -56,4 +59,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
+        # actions/deploy-pages@v5.0.0
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128

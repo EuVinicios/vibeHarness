@@ -16,6 +16,16 @@ afterEach(async () => {
   await rm(tmpDir, { recursive: true, force: true });
 });
 
+/** DSR obligations only exist when user data is persisted (v0.8.3 gate) —
+ * give the DSR fixtures a persistence layer so they exercise the checks. */
+async function addPersistence(): Promise<void> {
+  await writeFile(
+    join(tmpDir, 'package.json'),
+    JSON.stringify({ name: 'fixture', version: '0.0.0', dependencies: { pg: '^8.11.0' } }),
+    'utf8'
+  );
+}
+
 describe('scanLGPD', () => {
   it('returns a valid score and finding list', async () => {
     const result = await scanLGPD();
@@ -36,6 +46,7 @@ describe('scanLGPD', () => {
   });
 
   it('flags missing deletion endpoint (DSR right to erasure)', async () => {
+    await addPersistence();
     await writeFile(
       join(tmpDir, 'routes.ts'),
       `app.get('/api/user', handler);\napp.put('/api/user', handler);\n`,
@@ -49,6 +60,7 @@ describe('scanLGPD', () => {
   });
 
   it('does NOT flag deletion endpoint when DELETE /api/user exists', async () => {
+    await addPersistence();
     await writeFile(
       join(tmpDir, 'routes.ts'),
       `router.delete('/api/user', async (req, res) => { await deleteUser(req.user.id); res.json({ ok: true }); });\n`,
@@ -104,13 +116,14 @@ describe('scanLGPD', () => {
   });
 
   it('runs DSR checks when an HTTP API surface exists', async () => {
+    await addPersistence();
     await writeFile(
       join(tmpDir, 'server.ts'),
       `const app = express();\napp.post('/api/orders', handler);\n`,
       'utf8'
     );
     const result = await scanLGPD();
-    expect(result.findings.some((f) => f.category === 'lgpd-dsr')).toBe(true);
+    expect(result.findings.some((f) => f.category === 'lgpd-dsr' && f.severity !== 'info')).toBe(true);
     expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(false);
   });
 });
@@ -232,6 +245,7 @@ describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
   });
 
   it('recognises axios.delete / fastify.delete as DSR deletion evidence', async () => {
+    await addPersistence();
     await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
     await writeFile(join(tmpDir, 'settings.ts'), `export const del = () => axios.delete('/api/user');\n`, 'utf8');
     const result = await scanLGPD();
@@ -242,6 +256,7 @@ describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
   });
 
   it('recognises fetch with DELETE method as DSR deletion evidence', async () => {
+    await addPersistence();
     await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
     await writeFile(
       join(tmpDir, 'settings.ts'),
@@ -256,6 +271,7 @@ describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
   });
 
   it('recognises Next.js App Router DELETE handler in an account route file', async () => {
+    await addPersistence();
     await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
     await mkdir(join(tmpDir, 'app', 'account'), { recursive: true });
     await writeFile(
@@ -271,6 +287,7 @@ describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
   });
 
   it('recognises GET /api/user/export (path-first) as DSR export evidence', async () => {
+    await addPersistence();
     await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
     await writeFile(
       join(tmpDir, 'routes.ts'),
@@ -307,6 +324,7 @@ describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
 
 describe('scanLGPD — DSR beyond HTTP (v0.8)', () => {
   it('recognises Supabase RPC delete/export as DSR evidence', async () => {
+    await addPersistence();
     await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
     await writeFile(
       join(tmpDir, 'account.ts'),
@@ -318,6 +336,7 @@ describe('scanLGPD — DSR beyond HTTP (v0.8)', () => {
   });
 
   it('recognises SQL functions named delete_own_account / export_user_data', async () => {
+    await addPersistence();
     await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
     await writeFile(
       join(tmpDir, 'lgpd.sql'),
@@ -326,5 +345,100 @@ describe('scanLGPD — DSR beyond HTTP (v0.8)', () => {
     );
     const result = await scanLGPD();
     expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+  });
+});
+
+describe('scanLGPD — v0.8.3 regressions', () => {
+  it('detects MULTI-LINE INSERT…password statements (template literals)', async () => {
+    await writeFile(
+      join(tmpDir, 'db.ts'),
+      'const q = `INSERT INTO users (email, password)\nVALUES ($1, $2)`;\nawait db.query(q, [email, pwd]);\n',
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(
+      result.findings.some(
+        (f) => f.message.includes('plaintext password inserted') && f.severity === 'critical'
+      )
+    ).toBe(true);
+  });
+
+  it('does NOT flag multi-line INSERT hashed on the preceding line', async () => {
+    await writeFile(
+      join(tmpDir, 'db.ts'),
+      'const hash = await bcrypt.hash(pwd, 12);\nconst q = `INSERT INTO users (email, password)\nVALUES ($1, $2)`;\nawait db.query(q, [email, hash]);\n',
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(
+      result.findings.some((f) => f.message.includes('plaintext password inserted'))
+    ).toBe(false);
+  });
+
+  it('formatted CPF only flags with a valid checksum (lot numbers stay quiet)', async () => {
+    await writeFile(join(tmpDir, 'log1.ts'), 'console.log("cpf 111.444.777-35");\n', 'utf8');
+    const flagged = await scanLGPD();
+    expect(flagged.findings.some((f) => f.message.includes('CPF'))).toBe(true);
+
+    await writeFile(join(tmpDir, 'log1.ts'), 'console.log("lote 100 200 300 05");\n', 'utf8');
+    const clean = await scanLGPD();
+    expect(clean.findings.some((f) => f.message.includes('CPF'))).toBe(false);
+  });
+
+  it('PII after a helper call is no longer blinded by the first ")"', async () => {
+    await writeFile(join(tmpDir, 'log2.ts'), "console.log(getUser(), 'cliente a@b.co');\n", 'utf8');
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-pii-logs')).toBe(true);
+  });
+
+  it('prose mentioning LGPD does not satisfy consent; a banner mention does', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export const P = () => <p>Estamos em conformidade com a LGPD</p>;\n', 'utf8');
+    const prose = await scanLGPD();
+    expect(prose.findings.some((f) => f.category === 'lgpd-consent')).toBe(true);
+
+    await writeFile(join(tmpDir, 'page.tsx'), 'export const B = () => <div>banner LGPD: aceitar cookies</div>;\n', 'utf8');
+    const banner = await scanLGPD();
+    expect(banner.findings.some((f) => f.category === 'lgpd-consent')).toBe(false);
+  });
+
+  it('web app without persistence: DSR checks downgrade to a scope info', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await writeFile(join(tmpDir, 'routes.ts'), `app.get('/api/orders', handler);\n`, 'utf8');
+    const result = await scanLGPD();
+    const dsr = result.findings.filter((f) => f.category === 'lgpd-dsr');
+    expect(dsr.every((f) => f.severity === 'info')).toBe(true);
+  });
+
+  it('recognises App Router dynamic-segment routes and const DELETE handlers', async () => {
+    await addPersistence();
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await writeFile(
+      join(tmpDir, 'routes.ts'),
+      `app.get('/api/user/export', exp);\n`,
+      'utf8'
+    );
+    await mkdir(join(tmpDir, 'app', 'api', 'user', '[id]'), { recursive: true });
+    await writeFile(
+      join(tmpDir, join('app', 'api', 'user', '[id]', 'route.ts')),
+      `export const DELETE = async (req: Request) => new Response('ok');\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+  });
+
+  it('block/HTML comments no longer satisfy or hide heuristics', async () => {
+    // JSDoc example must not flag PII…
+    await writeFile(join(tmpDir, 'doc.ts'), '/** Example: console.log("contact a@b.co") */\nexport const x = 1;\n', 'utf8');
+    const commented = await scanLGPD();
+    expect(commented.findings.some((f) => f.category === 'lgpd-pii-logs')).toBe(false);
+  });
+
+  it('a commented-out CREATE POLICY no longer fakes RLS evidence', async () => {
+    await mkdir(join(tmpDir, 'prisma'), { recursive: true });
+    await writeFile(join(tmpDir, 'prisma', 'schema.prisma'), 'datasource db { provider = "postgresql" }\n', 'utf8');
+    await writeFile(join(tmpDir, 'mig.sql'), '-- CREATE POLICY users_select ON users FOR SELECT USING (true);\n', 'utf8');
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-rls')).toBe(true);
   });
 });

@@ -1,18 +1,19 @@
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
 import { loadAuditIgnores } from '../utils/audit-ignore.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
-import { EXCLUDED_DIRS } from './security.js';
-import { hasWebSurface, stripLineComments } from './lgpd.js';
+import { EXCLUDED_DIRS, isTestFile } from './security.js';
+import { hasWebSurface, stripLineComments, API_SURFACE_PATTERN } from './lgpd.js';
 
 /**
- * Health route — accepts `/health`, `/healthz`, `/healthcheck`, `/api/health`,
- * `/health/live` and `/health/ready`, quoted with ', " or `.
+ * Health route — accepts `/health`, `/healthz`, `/healthcheck` and prefixed
+ * or sub-routed forms (`/api/health`, `/api/v1/health`, `/health/live`,
+ * `/health/ready`), quoted with ', " or `.
  */
-const HEALTH_ROUTE_RE = /['"`]\/(?:api\/)?health(?:z|check|\/live|\/ready)?['"`]/i;
+const HEALTH_ROUTE_RE = /['"`](?:\/[\w.-]+)*\/health(?:z|check)?(?:\/(?:live|ready|deep))?['"`]/i;
 
 /**
  * Backend framework markers — `onError` only counts as a global error handler
@@ -20,6 +21,40 @@ const HEALTH_ROUTE_RE = /['"`]\/(?:api\/)?health(?:z|check|\/live|\/ready)?['"`]
  * as `<img onError={...}>` or error-boundary callbacks).
  */
 const BACKEND_MARKER_RE = /express|fastify|hono|koa|createServer|app\.listen/i;
+
+/** SSR/meta frameworks: their presence means routes may exist even without
+ * explicit markers in the scanned files — never classify them as static. */
+const SSR_FRAMEWORK_DEPS = ['next', 'nuxt', '@sveltejs/kit', 'astro', 'remix', '@remix-run/node'];
+
+/**
+ * True when the web surface comes exclusively from static markup — no route
+ * handlers, no server markers in source, no SSR framework dependency. Static
+ * sites/exports cannot host a /health endpoint or rate limiting, so the
+ * web-server checks must not score them (pre-0.8.3 they scored 0/10).
+ */
+async function isStaticOnlySite(uiFiles: string[], srcFiles: string[]): Promise<boolean> {
+  if (uiFiles.length === 0) return false;
+  for (const file of srcFiles) {
+    let content: string;
+    try {
+      content = await readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    if (API_SURFACE_PATTERN.test(content) || BACKEND_MARKER_RE.test(content)) return false;
+  }
+  try {
+    const pkg = JSON.parse(readFileSync(join(projectRoot(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    if (SSR_FRAMEWORK_DEPS.some((d) => deps[d])) return false;
+  } catch {
+    /* no package.json — judge by code alone */
+  }
+  return true;
+}
 
 export async function scanInfra(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
@@ -55,11 +90,27 @@ export async function scanInfra(): Promise<AuditSectionResult> {
     return { score: maxScore, maxScore, findings };
   }
 
+  // Static-site carve-out: a landing page or `next export` build has no
+  // server to host health checks, rate limiting or error handlers on.
+  if (await isStaticOnlySite(uiFiles, srcFiles)) {
+    findings.push({
+      severity: 'info',
+      category: 'infra-scope',
+      message: 'Static site detected (markup only, no server code) — web-server infra checks skipped',
+      fix: 'Not applicable to static sites/exports. Health endpoints, rate limiting and error handlers become relevant if the project gains a server layer.',
+    });
+    return { score: maxScore, maxScore, findings };
+  }
+
   let hasHealthEndpoint = false;
   let hasRateLimiting = false;
   let hasErrorHandler = false;
 
   for (const file of srcFiles) {
+    // Test fixtures routinely spin up mock servers — letting them satisfy the
+    // heuristics would mask a real app that has none of the three.
+    const rel = file.replace(projectRoot() + '/', '');
+    if (isTestFile(rel)) continue;
     let content: string;
     try {
       content = await readFile(file, 'utf8');
@@ -70,11 +121,22 @@ export async function scanInfra(): Promise<AuditSectionResult> {
     content = stripLineComments(content);
     if (HEALTH_ROUTE_RE.test(content)) hasHealthEndpoint = true;
     if (/rate.?limi/i.test(content)) hasRateLimiting = true;
-    if (/error.?handler|errorMiddleware/i.test(content)) {
+    if (/error.?handler|errorMiddleware/i.test(content) && BACKEND_MARKER_RE.test(content)) {
       hasErrorHandler = true;
     } else if (/onError/i.test(content) && BACKEND_MARKER_RE.test(content)) {
       hasErrorHandler = true;
     }
+  }
+
+  // Next.js App Router (and friends): filesystem routes have no quoted path
+  // string in code — `app/api/health/route.ts` IS the health endpoint.
+  if (!hasHealthEndpoint) {
+    const fsHealthRoutes = await fg('**/{app,pages,src}/**/health*/route.{ts,js,tsx,jsx}', {
+      cwd: projectRoot(),
+      ignore,
+      suppressErrors: true,
+    });
+    if (fsHealthRoutes.length > 0) hasHealthEndpoint = true;
   }
 
   if (!hasHealthEndpoint) {
@@ -102,13 +164,14 @@ export async function scanInfra(): Promise<AuditSectionResult> {
     });
   }
 
-  const hasCI = existsSync(join(projectRoot(), '.github', 'workflows')) ||
-    (await fg('.github/workflows/*.{yml,yaml}', {
-      cwd: projectRoot(),
-      ignore,
-      dot: true,
-      suppressErrors: true,
-    })).length > 0;
+  // An EMPTY .github/workflows directory is not CI — require an actual file.
+  const workflowFiles = await fg('.github/workflows/*.{yml,yaml}', {
+    cwd: projectRoot(),
+    ignore: auditIgnores,
+    dot: true,
+    suppressErrors: true,
+  });
+  const hasCI = workflowFiles.length > 0;
 
   if (!hasCI) {
     findings.push({

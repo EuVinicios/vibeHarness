@@ -164,4 +164,34 @@ describe('packContext', () => {
     expect(typeof result.totalBytes).toBe('number');
     expect(typeof result.skippedBinary).toBe('number');
   });
+
+  it('redacts EVERY secret on a line — minified bundles (v0.8.3)', async () => {
+    // Pre-0.8.3 the curated patterns replaced only the first match per line,
+    // so the second token on a minified line leaked into CONTEXT.md.
+    const gh = 'gh' + 'p' + '_';
+    const tokenA = gh + 'a'.repeat(36);
+    const tokenB = gh + 'b'.repeat(36);
+    const tokenC = gh + 'c'.repeat(36);
+    await writeFile(
+      join(tmpDir, 'bundle.js'),
+      `var a="${tokenA}";var b="${tokenB}";var c="${tokenC}";\n`,
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).not.toContain(tokenA);
+    expect(content).not.toContain(tokenB);
+    expect(content).not.toContain(tokenC);
+  });
+
+  it('redacts multiple generic assignments on one line', async () => {
+    await writeFile(
+      join(tmpDir, 'env.sh'),
+      'DB_PASSWORD=first-secret-value API_TOKEN=second-secret-value\n',
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const content = await readFile(result.outputPath, 'utf8');
+    expect(content).not.toContain('first-secret-value');
+  });
 });

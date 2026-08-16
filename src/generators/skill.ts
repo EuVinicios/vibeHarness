@@ -1,7 +1,9 @@
-import { sanitizeForPrompt } from '../ui/report.js';
+import { sanitizeInline } from '../ui/report.js';
 
 export function skillMdTemplate(projectName: string): string {
-  const safeName = sanitizeForPrompt(projectName);
+  // The name lands inside YAML frontmatter — any line break (\n OR \r) would
+  // inject new keys, so flatten every break form, not just \n.
+  const safeName = sanitizeInline(projectName);
   return `---
 name: vibeharness
 description: Production harness for vibecoding in ${safeName}. Use when starting a feature (prd/plan), preparing AI context (pack), or checking production readiness (audit/doctor). Invokes the vibe-harness CLI — never re-implement its logic.
@@ -114,8 +116,8 @@ ${spec.body}
 }
 
 export function agentsMdTemplate(projectName: string, stack: string[]): string {
-  const safeName = sanitizeForPrompt(projectName);
-  const safeStack = stack.map((item) => sanitizeForPrompt(item));
+  const safeName = sanitizeInline(projectName);
+  const safeStack = stack.map((item) => sanitizeInline(item));
   const stackLine = safeStack.length ? safeStack.join(', ') : 'not detected yet';
   return `# AGENTS.md — ${safeName}
 

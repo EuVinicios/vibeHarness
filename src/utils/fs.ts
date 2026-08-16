@@ -17,9 +17,12 @@ export interface WriteOptions {
 
 /**
  * Unified write policy: skip-if-exists by default, overwrite only with an
- * explicit opt-in. Two safety properties:
+ * explicit opt-in. Three safety properties:
  * - never writes through a symlink (a repo-planted link could point anywhere,
  *   e.g. `.mcp.json -> ~/.profile`);
+ * - the temp file is created with O_EXCL (`wx`): a pre-planted
+ *   `<target>.tmp-<pid>` symlink is refused instead of being followed
+ *   (predictable tmp names made this a TOCTOU vector);
  * - atomic: content goes to a sibling temp file first, then rename — a crash
  *   mid-write can never leave a config truncated.
  */
@@ -49,10 +52,45 @@ export async function writeFileSafe(
   }
 
   const tmp = `${filePath}.tmp-${process.pid}`;
-  await writeFile(tmp, content, 'utf8');
+  try {
+    await writeFile(tmp, content, { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    // A pre-existing tmp path is only reusable as a plain stale file from a
+    // crashed run — a planted symlink must never be written through.
+    const stale = await lstat(tmp);
+    if (stale.isSymbolicLink()) {
+      if (!quiet) console.log(chalk.red(`  ✖  Refused to reuse symlinked temp file: ${tmp}`));
+      return false;
+    }
+    await writeFile(tmp, content, 'utf8');
+  }
   await rename(tmp, filePath);
   if (!quiet) console.log(chalk.green(`  ✔  Written: ${filePath}`));
   return true;
+}
+
+/**
+ * True when any DIRECTORY segment between `anchor` and the target file is a
+ * symlink (e.g. `.cursor -> /somewhere` planted in a repo). writeFileSafe's
+ * own lstat only covers the final path component; without this check a
+ * symlinked ancestor directory redirects the whole write outside the anchor.
+ * The final component is excluded — writeFileSafe handles it.
+ */
+export async function hasSymlinkedAncestorSegment(anchor: string, relativePath: string): Promise<boolean> {
+  const segments = relativePath.split(/[\\/]/).filter(Boolean);
+  // Only directory segments: everything before the final file name.
+  for (let i = 1; i < segments.length; i++) {
+    const prefix = join(anchor, ...segments.slice(0, i));
+    try {
+      const st = await lstat(prefix);
+      if (st.isSymbolicLink()) return true;
+    } catch {
+      // Missing segment — ensureDir will create it fresh (never a symlink).
+      return false;
+    }
+  }
+  return false;
 }
 
 /** Copy a file before rewriting it — lets the user recover from a bad merge. */

@@ -135,6 +135,11 @@ export function isEphemeralDbUri(password: string, host: string): boolean {
 export const EXCLUDED_DIRS = [
   'node_modules', '.git', 'dist', 'build', '.next',
   '__pycache__', '.venv', 'venv', 'coverage',
+  // Generated/vendored output dirs — scanning them produces noise (minified
+  // bundles satisfy or trip heuristics) and users scan their app, not build
+  // artefacts. `.vibe/auditignore` remains the per-project escape hatch.
+  'out', '.svelte-kit', '.nuxt', '.output', '.vercel', '.turbo',
+  '.wrangler', '.cache', '.docusaurus', 'storybook-static', 'docs-build',
 ];
 
 /** Max findings per file for the secret scan — keeps reports readable on riddled files. */

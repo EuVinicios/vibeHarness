@@ -282,6 +282,34 @@
         "notes": "Mature option, common in form ecosystems."
       }
     ],
+    "linting": [
+      {
+        "repo": "eslint/eslint",
+        "name": "ESLint",
+        "stars": 27457,
+        "license": "MIT",
+        "lastPush": "2026-08-16",
+        "lastVerified": "2026-08-16",
+        "tags": [
+          "lint",
+          "quality"
+        ],
+        "notes": "Default linter for JS/TS; flat config (eslint.config.mjs). Dead code and insecure patterns surface here before audit."
+      },
+      {
+        "repo": "prettier/prettier",
+        "name": "Prettier",
+        "stars": 52203,
+        "license": "MIT",
+        "lastPush": "2026-08-16",
+        "lastVerified": "2026-08-16",
+        "tags": [
+          "format",
+          "style"
+        ],
+        "notes": "Opinionated formatter — ends style debates; pair with ESLint (they do not overlap)."
+      }
+    ],
     "testing": [
       {
         "repo": "vitest-dev/vitest",

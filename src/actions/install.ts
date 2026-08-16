@@ -1,6 +1,7 @@
-import { join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -10,7 +11,14 @@ import {
   type ClientAdapter,
   type ClientsCatalog,
 } from '../registry/clients.js';
-import { writeFileSafe, backupFile, detectStack, projectRoot, getProjectName } from '../utils/fs.js';
+import {
+  writeFileSafe,
+  backupFile,
+  detectStack,
+  projectRoot,
+  getProjectName,
+  hasSymlinkedAncestorSegment,
+} from '../utils/fs.js';
 import {
   masterRulesTemplate,
   claudeMdTemplate,
@@ -84,10 +92,25 @@ async function detectClients(catalog: ClientsCatalog): Promise<ClientAdapter[]> 
   return matches;
 }
 
+/**
+ * Anchor for `~`-rooted adapter paths (e.g. Windsurf's global config).
+ * `VIBE_HOME` overrides the real home directory so tests and CI can exercise
+ * global-path clients without ever touching the user's actual dotfiles.
+ */
+export function homeAnchor(): string {
+  return process.env.VIBE_HOME || homedir();
+}
+
 function expandPath(p: string): string {
-  if (p === '~') return homedir();
-  if (p.startsWith('~/') || p.startsWith('~\\')) return join(homedir(), p.slice(2));
+  const home = homeAnchor();
+  if (p === '~') return home;
+  if (p.startsWith('~/') || p.startsWith('~\\')) return join(home, p.slice(2));
   return p;
+}
+
+/** Anchor a raw adapter path: home for `~` paths, the project root otherwise. */
+function anchorFor(rawPath: string): string {
+  return rawPath.startsWith('~') ? homeAnchor() : projectRoot();
 }
 
 function resolveTargetPath(p: string): string {
@@ -136,6 +159,34 @@ async function isSelfPackage(packageName: string): Promise<boolean> {
   }
 }
 
+/** This package's own version — pins the MCP registration in client configs. */
+function readCliVersion(): string | null {
+  try {
+    const raw = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'),
+      'utf8'
+    );
+    return (JSON.parse(raw) as { version?: string }).version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Substitute the `{version}` placeholder in the server command args with the
+ * generating CLI version. A floating `npx -y @vibeharness/cli` re-resolves
+ * `latest` on EVERY client startup — a registry compromise would become code
+ * execution inside the AI client, the exact anti-pattern the curated
+ * .mcp.json recipe refuses for third-party servers.
+ */
+function pinnedServerCommand(catalog: ClientsCatalog): { command: string; args: string[] } {
+  const version = readCliVersion();
+  const args = catalog.serverCommand.args.map((a) =>
+    version ? a.replace('{version}', version) : a.replace('@{version}', '')
+  );
+  return { command: catalog.serverCommand.command, args };
+}
+
 /** Merge the vibe-harness server into the client's MCP config without
  * clobbering existing servers. Fails loud (never writes) when the existing
  * config is unparseable or not an object — and backs up the original first. */
@@ -157,6 +208,11 @@ async function mergeMcpConfig(
     }
   }
   const target = resolveTargetPath(targetPath);
+  if (await hasSymlinkedAncestorSegment(anchorFor(targetPath), targetPath)) {
+    throw new Error(
+      `${client.name}: MCP config path ${targetPath} contains a symlinked directory — refusing to write outside the expected location`
+    );
+  }
   const read = await readJsonObject(target);
   if (read.status === 'invalid') {
     throw new Error(
@@ -169,8 +225,8 @@ async function mergeMcpConfig(
   // npm exec resolves the package name against the local project, whose bin
   // is not linked into node_modules/.bin. Run the local build directly.
   const { command, args } = selfRepo
-    ? catalog.selfRepoCommand ?? catalog.serverCommand
-    : catalog.serverCommand;
+    ? catalog.selfRepoCommand ?? pinnedServerCommand(catalog)
+    : pinnedServerCommand(catalog);
 
   let root: JsonRecord;
   switch (client.mcp.format) {
@@ -198,7 +254,13 @@ async function mergeMcpConfig(
 
   const existedBefore = read.status === 'ok';
   const backup = existedBefore ? (await backupFile(target)) ?? undefined : undefined;
-  await writeFileSafe(target, JSON.stringify(root, null, 2) + '\n', { overwrite: true, quiet: true });
+  const written = await writeFileSafe(target, JSON.stringify(root, null, 2) + '\n', { overwrite: true, quiet: true });
+  if (!written) {
+    // writeFileSafe refuses symlinked targets: report it as the hard failure
+    // it is. Claiming "merged" here (the pre-0.8.3 behaviour) told users the
+    // MCP server was registered when nothing had been written.
+    throw new Error(`${client.name}: refused to write MCP config at ${targetPath} (symlink?) — nothing was written`);
+  }
   return { path: targetPath, created: !existedBefore, merged: existedBefore, selfRepo, backup };
 }
 
@@ -243,14 +305,19 @@ async function installOne(
   force: boolean
 ): Promise<void> {
   const rulesContent = await buildRulesContent(client);
-  const rulesWritten = await writeFileSafe(resolveTargetPath(client.rules.path), rulesContent, {
-    overwrite: force,
-    quiet: true,
-  });
+  const rulesSymlinkedDir = await hasSymlinkedAncestorSegment(anchorFor(client.rules.path), client.rules.path);
+  const rulesWritten = rulesSymlinkedDir
+    ? false
+    : await writeFileSafe(resolveTargetPath(client.rules.path), rulesContent, {
+        overwrite: force,
+        quiet: true,
+      });
   if (rulesWritten) {
     outputs.push(client.rules.path);
   } else {
-    notes.push(`${client.name}: ${client.rules.path} kept unchanged (exists or symlink — use force to overwrite)`);
+    notes.push(
+      `${client.name}: ${client.rules.path} kept unchanged (${rulesSymlinkedDir ? 'symlinked directory in path' : 'exists or symlink'} — use force to overwrite)`
+    );
   }
 
   const mcp = await mergeMcpConfig(catalog, client, selfRepo);
@@ -268,16 +335,22 @@ async function installOne(
   for (const extra of client.extras) {
     if (extra.template === 'skill') {
       const projectName = await getProjectName();
-      const written = await writeFileSafe(resolveTargetPath(extra.path), skillMdTemplate(projectName), { overwrite: force, quiet: true });
+      const extraSymlinkedDir = await hasSymlinkedAncestorSegment(anchorFor(extra.path), extra.path);
+      const written = extraSymlinkedDir
+        ? false
+        : await writeFileSafe(resolveTargetPath(extra.path), skillMdTemplate(projectName), { overwrite: force, quiet: true });
       if (written) {
         outputs.push(extra.path);
       } else {
-        notes.push(`${client.name}: ${extra.path} kept unchanged (exists or symlink — use force to overwrite)`);
+        notes.push(`${client.name}: ${extra.path} kept unchanged (${extraSymlinkedDir ? 'symlinked directory in path' : 'exists or symlink'} — use force to overwrite)`);
       }
     } else if (extra.template === 'command' && extra.foreach) {
       for (const cmd of extra.foreach) {
         const path = extra.path.replace('{command}', cmd);
-        const written = await writeFileSafe(resolveTargetPath(path), slashCommandTemplate(cmd as never), { overwrite: force, quiet: true });
+        const cmdSymlinkedDir = await hasSymlinkedAncestorSegment(anchorFor(path), path);
+        const written = cmdSymlinkedDir
+          ? false
+          : await writeFileSafe(resolveTargetPath(path), slashCommandTemplate(cmd as never), { overwrite: force, quiet: true });
         if (written) {
           outputs.push(path);
         }
@@ -303,7 +376,7 @@ const execFileAsync = promisify(execFile);
  * Best-effort: never fails the install.
  */
 async function warmNpxCache(catalog: ClientsCatalog, notes: string[]): Promise<void> {
-  const { command, args } = catalog.serverCommand;
+  const { command, args } = pinnedServerCommand(catalog);
   if (command !== 'npx' || process.env.CI) return;
   try {
     await execFileAsync(command, [...args.filter((a) => a !== 'mcp'), '--version'], {

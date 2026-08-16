@@ -2,7 +2,7 @@
   "$comment": "AI client adapters for `vibe-harness install`. Adding a client = adding an entry here (no src/ changes). MCP config formats: mcp-servers (Claude Code/Cursor/Windsurf/Qwen shape), vscode-servers (VS Code 'servers' shape), opencode (local command array). status: stable = verified, beta = best-effort, verify in the client UI. selfRepoCommand is used when installing inside the package's own repo: npx fails there (npm exec resolves the package name against the local project, whose bin is not linked in node_modules/.bin), so the local build is invoked directly.",
   "serverName": "vibe-harness",
   "packageName": "@vibeharness/cli",
-  "serverCommand": { "command": "npx", "args": ["-y", "@vibeharness/cli", "mcp"] },
+  "serverCommand": { "command": "npx", "args": ["-y", "@vibeharness/cli@{version}", "mcp"] },
   "selfRepoCommand": { "command": "node", "args": ["./dist/cli.js", "mcp"] },
   "clients": [
     {

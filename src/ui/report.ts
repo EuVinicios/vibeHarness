@@ -20,9 +20,11 @@ const MAX_UNTRUSTED_LENGTH = 200;
  */
 export function sanitizeForPrompt(text: string, maxLength = MAX_UNTRUSTED_LENGTH): string {
   const cleaned = text
-    // Strip control characters (keeps \n and \t)
+    // Strip control characters (keeps \n only). \r MUST go too: YAML treats a
+    // lone CR as a line break, so one surviving \r let a malicious
+    // package.json name break out of the `#` comment in generated workflows.
     // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/[\x00-\x09\x0B-\x1F\x7F]/g, '')
     // Neutralise markdown/prompt escape sequences
     .replace(/`/g, "'")
     .replace(/\$\{/g, '(')
@@ -30,9 +32,15 @@ export function sanitizeForPrompt(text: string, maxLength = MAX_UNTRUSTED_LENGTH
   return cleaned.length > maxLength ? cleaned.slice(0, maxLength) + '…' : cleaned;
 }
 
-/** Like sanitizeForPrompt but flattens newlines — for single-line contexts (file paths, titles). */
-function sanitizeInline(text: string): string {
-  return sanitizeForPrompt(text).replace(/\r?\n/g, ' ');
+/**
+ * Like sanitizeForPrompt but flattens every line-break form — for single-line
+ * contexts (YAML comments, markdown headings, frontmatter fields). Use this
+ * for ANY interpolation into generated files; bare sanitizeForPrompt keeps \n.
+ * Breaks become a space (a word separator), applied BEFORE the control-char
+ * strip so the separator survives.
+ */
+export function sanitizeInline(text: string, maxLength = MAX_UNTRUSTED_LENGTH): string {
+  return sanitizeForPrompt(text.replace(/[\r\n\u0085\u2028\u2029]+/g, ' '), maxLength);
 }
 
 function severityBadge(severity: Finding['severity']): string {
