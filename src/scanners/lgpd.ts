@@ -121,10 +121,16 @@ function triageSensitiveLog(callLine: string, kwIndex: number): 'dynamic' | 'sta
  * heuristics. Not a parser — good enough for heuristic scanning.
  */
 export function stripLineComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
+  let out = src;
+  let prev: string;
+  do {
+    prev = out;
+    out = out
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/<!--[\s\S]*?-->/g, '');
+  } while (out !== prev);
+
+  return out.replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
 }
 
 /** SQL `--` line-comment stripper for migration/policy files. */
