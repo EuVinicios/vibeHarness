@@ -1,0 +1,44 @@
+name: Site (landing)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: site-landing
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: deploy-landing
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}/site/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Pages
+        uses: actions/configure-pages@9833f4713f3f1f9963abb1992247b0f869801383
+
+      # Pure static site — no build step, just publish the folder at /site/.
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@7d1ee3e1ddbd1955806797038e8c72d47fc93939
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@549b547e0e03600b2734a12abb6d6344a76dd4d8
+        with:
+          path: site
