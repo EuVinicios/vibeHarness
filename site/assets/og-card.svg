@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0f17"/>
+      <stop offset="1" stop-color="#101a2c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="75%" cy="10%" r="70%">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g transform="translate(90,150)">
+    <rect x="0" y="0" width="200" height="200" rx="52" fill="#131b2b" stroke="#24304a"/>
+    <path d="M48 78 80 152 100 111 120 152 152 78" fill="none" stroke="#34d399" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="350" y="250" font-family="Inter, sans-serif" font-size="76" font-weight="800" fill="#e6ebf5">VibeHarness</text>
+  <text x="350" y="330" font-family="Inter, sans-serif" font-size="40" fill="#93a0bb">Do prompt à produção, sem o caos.</text>
+  <g transform="translate(350,390)">
+    <rect x="0" y="0" width="620" height="84" rx="14" fill="#0a0e16" stroke="#24304a"/>
+    <circle cx="30" cy="24" r="7" fill="#f26d6d"/>
+    <circle cx="54" cy="24" r="7" fill="#f2c96d"/>
+    <circle cx="78" cy="24" r="7" fill="#6dd394"/>
+    <text x="110" y="52" font-family="JetBrains Mono, monospace" font-size="30" fill="#34d399">$</text>
+    <text x="138" y="52" font-family="JetBrains Mono, monospace" font-size="30" fill="#d7e0ef">npx @vibeharness/cli install</text>
+  </g>
+  <text x="90" y="560" font-family="JetBrains Mono, monospace" font-size="26" fill="#34d399">euvinicios.github.io/vibeHarness</text>
+</svg>
