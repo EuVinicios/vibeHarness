@@ -2,42 +2,60 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 
 /**
  * Loader for registry/clients.json — the declarative AI-client adapters used
  * by `vibe-harness install`. Adding a client is a data change here, not a
- * code change.
+ * code change. The registry ships inside the package, but it is still parsed
+ * with a strict schema: every path it carries becomes a write target, so a
+ * malformed or tampered entry must fail loud, never flow into writeFileSafe.
  */
 
-export type McpConfigFormat = 'mcp-servers' | 'vscode-servers' | 'opencode';
+/** Write targets may not escape their anchor directory (project root or ~). */
+const safePath = z
+  .string()
+  .min(1)
+  .refine((p) => !p.split(/[\\/]/).includes('..'), 'path traversal in registry path');
 
-export interface ClientAdapter {
-  id: string;
-  name: string;
-  status: 'stable' | 'beta';
-  /** Glob-ish hints used to detect an already-configured client. */
-  detect: string[];
-  rules: { path: string; format: 'claude-md' | 'cursor-mdc' | 'agents-md' | 'copilot-md' | 'windsurf-md' };
-  mcp: { path: string; format: McpConfigFormat; global: boolean };
-  extras: ClientExtra[];
-  docs: string;
-}
+const ClientAdapterSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  status: z.enum(['stable', 'beta']),
+  detect: z.array(z.string()).default([]),
+  rules: z.object({
+    path: safePath,
+    format: z.enum(['claude-md', 'cursor-mdc', 'agents-md', 'copilot-md', 'windsurf-md']),
+  }),
+  mcp: z.object({
+    path: safePath,
+    format: z.enum(['mcp-servers', 'vscode-servers', 'opencode']),
+    global: z.boolean(),
+    /** Other config files the client may already use (e.g. opencode.jsonc). */
+    alternativePaths: z.array(safePath).optional(),
+  }),
+  extras: z
+    .array(
+      z.object({
+        path: safePath,
+        template: z.enum(['skill', 'command']),
+        foreach: z.array(z.string()).optional(),
+      })
+    )
+    .default([]),
+  docs: z.string().url(),
+});
 
-export interface ClientExtra {
-  path: string;
-  template: 'skill' | 'command';
-  foreach?: string[];
-}
+const ClientsCatalogSchema = z.object({
+  serverName: z.string().min(1),
+  packageName: z.string().min(1),
+  serverCommand: z.object({ command: z.string().min(1), args: z.array(z.string()) }),
+  selfRepoCommand: z.object({ command: z.string().min(1), args: z.array(z.string()) }).optional(),
+  clients: z.array(ClientAdapterSchema).min(1),
+});
 
-export interface ClientsCatalog {
-  serverName: string;
-  /** npm package that provides the server — used to detect self-installs. */
-  packageName: string;
-  serverCommand: { command: string; args: string[] };
-  /** Server entry used when installing inside the package's own repo. */
-  selfRepoCommand: { command: string; args: string[] };
-  clients: ClientAdapter[];
-}
+export type ClientAdapter = z.infer<typeof ClientAdapterSchema>;
+export type ClientsCatalog = z.infer<typeof ClientsCatalogSchema>;
 
 function registryDir(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'registry');
@@ -50,10 +68,8 @@ export async function loadClientsCatalog(): Promise<ClientsCatalog | null> {
   ]) {
     if (!existsSync(candidate)) continue;
     try {
-      const parsed = JSON.parse(await readFile(candidate, 'utf8')) as ClientsCatalog;
-      if (Array.isArray(parsed.clients) && parsed.serverName && parsed.serverCommand) {
-        return parsed;
-      }
+      const parsed = ClientsCatalogSchema.safeParse(JSON.parse(await readFile(candidate, 'utf8')));
+      if (parsed.success) return parsed.data;
     } catch {
       /* try next candidate */
     }

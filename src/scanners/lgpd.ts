@@ -12,7 +12,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
@@ -24,9 +24,11 @@ import { EXCLUDED_DIRS } from './security.js';
 
 /** Detects PII being printed/logged without masking — literal PII values. */
 const PII_LOG_PATTERNS: [RegExp, string][] = [
-  // CPF patterns (###.###.###-##  or  11 digits)
+  // CPF with separators (###.###.###-##) — high-confidence formatting.
+  // Bare 11-digit runs are checked separately with checksum validation so
+  // numeric IDs and timestamps are not flagged (see scanBareCpfInLogs).
   [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*\b(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2})\b/,
+    /console\.(log|error|warn|info|debug)\s*\([^)]*\b(\d{3}[.\s]\d{3}[.\s]\d{3}[-\s]\d{2})\b/,
     'CPF number in log statement',
   ],
   // E-mail in logs
@@ -34,12 +36,30 @@ const PII_LOG_PATTERNS: [RegExp, string][] = [
     /console\.(log|error|warn|info|debug)\s*\([^)]*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
     'E-mail address in log statement',
   ],
-  // Phone number in logs (BR format)
+  // Phone number in logs (BR format) — requires an explicit marker (+55) or
+  // at least one separator, so contiguous digit runs (Unix timestamps,
+  // order IDs) are never flagged.
   [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*(\+55|0\d{2})?\s*\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}/,
+    /console\.(log|error|warn|info|debug)\s*\([^)]*(?:\+55[\s-]?\(?\d{2}\)?[\s-]?\d{4,5}[-\s]?\d{4}|\(\d{2}\)[\s-]?\d{4,5}[-\s]\d{4}|\b\d{2}[\s-]\d{4,5}[\s-]\d{4}\b)/,
     'Phone number in log statement',
   ],
 ];
+
+/** Bare 11-digit candidate CPFs inside log statements. */
+const BARE_CPF_LOG_RE = /console\.(log|error|warn|info|debug)\s*\([^)]*\b(\d{11})\b/g;
+
+/** CPF check-digit validation (Receita Federal algorithm). Rejects sequences
+ * like 111.111.111-11 and every non-CPF 11-digit number (IDs, timestamps). */
+export function isValidCpf(digits: string): boolean {
+  if (!/^\d{11}$/.test(digits) || /^(\d)\1{10}$/.test(digits)) return false;
+  const checkDigit = (len: number): number => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += Number(digits[i]) * (len + 1 - i);
+    const mod = (sum * 10) % 11;
+    return mod === 10 ? 0 : mod;
+  };
+  return checkDigit(9) === Number(digits[9]) && checkDigit(10) === Number(digits[10]);
+}
 
 /**
  * Sensitive *field names* in log statements — triaged (v0.8): a keyword inside
@@ -52,42 +72,64 @@ const SENSITIVE_FIELD_PRINT_RE = /print\s*\(([^)\n]*)\b(password|senha|cpf|email
 
 /**
  * Returns the quote character surrounding `index` in `src` ('"', "'", '`'),
- * or null when the position is outside any string literal.
+ * plus the position of the opening quote, or nulls when the position is
+ * outside any string literal.
  */
-function quoteStateAt(src: string, index: number): string | null {
+function quoteStateAt(src: string, index: number): { quote: string | null; openIndex: number } {
   let quote: string | null = null;
+  let openIndex = -1;
   for (let i = 0; i < index && i < src.length; i++) {
     const ch = src[i];
     if (ch === '\\') {
       i++;
       continue;
     }
-    if (quote === null && (ch === '"' || ch === "'" || ch === '`')) quote = ch;
-    else if (quote === ch) quote = null;
+    if (quote === null && (ch === '"' || ch === "'" || ch === '`')) {
+      quote = ch;
+      openIndex = i;
+    } else if (quote === ch) {
+      quote = null;
+      openIndex = -1;
+    }
   }
-  return quote;
+  return { quote, openIndex };
 }
 
 /**
  * Classify a sensitive-keyword log match using the whole call line:
  * - keyword outside any quotes (logged as a value) → dynamic
  * - keyword inside a template literal that interpolates data → dynamic
+ * - keyword inside a Python f-string, or a `.format()` / `%` expression → dynamic
  * - keyword inside a plain static string → static (no data logged)
  */
 function triageSensitiveLog(callLine: string, kwIndex: number): 'dynamic' | 'static' {
-  const quote = quoteStateAt(callLine, kwIndex);
+  const { quote, openIndex } = quoteStateAt(callLine, kwIndex);
   if (quote === null) return 'dynamic';
   if (quote === '`') return callLine.includes('${') ? 'dynamic' : 'static';
+  // Python f-string: the opening quote is immediately prefixed with `f`.
+  if (openIndex > 0 && /[fF]/.test(callLine[openIndex - 1])) return 'dynamic';
+  if (/\.format\s*\(|%\s*[(sd]/.test(callLine)) return 'dynamic';
   return 'static';
 }
 
-/** Insecure password hashing */
+/**
+ * Conservative line-comment stripper: removes `// …` sequences that are not
+ * part of a URL (`://`) so commented-out code and TODO notes never satisfy
+ * detection heuristics. Not a parser — good enough for heuristic scanning.
+ */
+export function stripLineComments(src: string): string {
+  return src.replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
+}
+
+/** Insecure password hashing — labels are context-neutral: md5/sha1 also have
+ * legitimate non-password uses (Gravatar, ETags, cache keys), and the old
+ * "used for password/data" claim could not be verified by the regex. */
 const WEAK_HASH_PATTERNS: [RegExp, string][] = [
-  [/md5\s*\(/i, 'MD5 hash used for password/data (cryptographically broken)'],
-  [/sha1\s*\(/i, 'SHA1 hash used for password/data (weak for passwords)'],
-  [/createHash\s*\(\s*['"]md5['"]/i, 'Node.js MD5 hash'],
-  [/createHash\s*\(\s*['"]sha1['"]/i, 'Node.js SHA1 hash'],
-  [/hashlib\.(md5|sha1)\s*\(/i, 'Python MD5/SHA1 hash'],
+  [/md5\s*\(/i, 'MD5 hash detected (cryptographically broken) — verify it is not used for passwords or signatures'],
+  [/sha1\s*\(/i, 'SHA1 hash detected (weak) — verify it is not used for passwords or signatures'],
+  [/createHash\s*\(\s*['"]md5['"]/i, 'Node.js MD5 hash detected — verify it is not used for passwords or signatures'],
+  [/createHash\s*\(\s*['"]sha1['"]/i, 'Node.js SHA1 hash detected — verify it is not used for passwords or signatures'],
+  [/hashlib\.(md5|sha1)\s*\(/i, 'Python MD5/SHA1 hash detected — verify it is not used for passwords or signatures'],
 ];
 
 const CONSENT_MARKERS = [
@@ -97,7 +139,8 @@ const CONSENT_MARKERS = [
   'consentimento',
   'lgpd',
   'gdpr',
-  'gtag',
+  // NOTE: 'gtag' is NOT a consent marker — Google Analytics loads without
+  // any consent mechanism. Only real consent platforms/patterns count.
   'CookieYes',
   'OneTrust',
   'Cookiebot',
@@ -124,16 +167,24 @@ const TERMS_ROUTES = [
  */
 const DSR_DELETE_PATTERNS = [
   /delete\s+['"`]\/api\/(user|account|me|usuario|conta)/i,
-  /router\.(delete|del)\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
-  /app\.(delete|del)\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
+  // Any receiver: router.delete, app.delete, fastify.delete, axios.delete,
+  // ky.delete, supabase.from(...).delete('/user')…
+  /\b\w+\.(delete|del)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)\b/i,
   /route\s*\(\s*['"`]delete['"`]\s*,\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
   /@Delete\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
+  // fetch('/api/user', { method: 'DELETE' }) and variants
+  /(fetch|axios|ky|got)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)[^'"`]*['"`][\s\S]{0,120}?method\s*:\s*['"`]delete['"`]/i,
+  /method\s*:\s*['"`]delete['"`][\s\S]{0,120}?['"`]\/(\w+\/)*(user|account|me|usuario|conta)\b/i,
+  // Next.js App Router handler in a user/account route file — detected by
+  // file path + `export function DELETE` in scanLGPD itself.
   /\.rpc\(\s*['"`](delete[_-]?(own[_-]?)?(account|user|conta|usuario)|(account|user|conta|usuario)[_-]?delete)['"`]/i,
   /create\s+(?:or\s+replace\s+)?function\s+(delete[_-]?(own[_-]?)?(account|user|conta|usuario)|(account|user|conta|usuario)[_-]?delete)\s*\(/i,
 ];
 
 const DSR_EXPORT_PATTERNS = [
   /export.*\/(user|account|me|usuario)\/(data|dados|export|exportar)/i,
+  // Path-first forms: app.get('/api/user/export'), GET /user/data…
+  /(get|route)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)\/(data|dados|export|exportar)/i,
   /download.*\/(user|account|me|usuario)\/(data|dados)/i,
   /portabilidade/i,
   /'data.?export'|"data.?export"|`data.?export`/i,
@@ -152,8 +203,17 @@ const RLS_CHECK_PATTERNS = [
 const PLAINTEXT_PASSWORD_PATTERNS: [RegExp, string][] = [
   [/password\s*=\s*req\.(body|json)\s*\.\s*password\s*(?!.*hash|.*bcrypt|.*argon)/, 'Possible plaintext password stored without hashing'],
   [/user\.password\s*=\s*password\s*(?!.*hash|.*bcrypt|.*argon)/, 'Possible plaintext password assignment without hashing'],
-  [/INSERT.*password.*VALUES.*\$.*(?!hash|bcrypt|argon)/i, 'Possible plaintext password inserted into database'],
 ];
+
+/**
+ * INSERT statements that mention a password column. The hashing guard is
+ * checked against the whole statement line here (a trailing negative
+ * lookahead after `.*` is vacuous — it always succeeds at end-of-line, so
+ * the old inline guard never excluded anything). Supports `$1` and `?`
+ * placeholders alike.
+ */
+const INSERT_PASSWORD_RE = /INSERT\s+INTO[^;\n]*password[^;\n]*VALUES/gi;
+const HASHING_GUARD_RE = /hash|bcrypt|argon|crypt|pbkdf2?|scrypt/i;
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -184,7 +244,7 @@ const API_SURFACE_PATTERN =
  * pages, DSR endpoints) — they are web-application obligations (LGPD Art. 8/9/18
  * apply to data controllers operating user-facing services, not dev tooling).
  */
-async function hasWebSurface(uiFiles: string[], sourceFiles: string[]): Promise<boolean> {
+export async function hasWebSurface(uiFiles: string[], sourceFiles: string[]): Promise<boolean> {
   if (uiFiles.length > 0) return true;
   for (const file of sourceFiles) {
     let content: string;
@@ -203,7 +263,8 @@ async function searchInFiles(
   files: string[],
   severity: Finding['severity'],
   category: string,
-  fix: string
+  fix: string,
+  options: { stripComments?: boolean } = {}
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
   for (const file of files) {
@@ -213,6 +274,7 @@ async function searchInFiles(
     } catch {
       continue;
     }
+    if (options.stripComments) content = stripLineComments(content);
     for (const [pattern, label] of patterns) {
       if (pattern.test(content)) {
         findings.push({
@@ -255,9 +317,35 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     sourceFiles,
     'high',
     'lgpd-pii-logs',
-    'Use a logging library with field masking (e.g., pino redact) and never log CPF, e-mail, phone, password, or tokens. Instrument with `logger.info({ userId }, "msg")` instead of logging the full user object.'
+    'Use a logging library with field masking (e.g., pino redact) and never log CPF, e-mail, phone, password, or tokens. Instrument with `logger.info({ userId }, "msg")` instead of logging the full user object.',
+    { stripComments: true }
   );
   findings.push(...piiFindings);
+
+  /* 1a-i. Bare 11-digit numbers in logs — only flagged when the value passes
+   * CPF check-digit validation (numeric IDs and timestamps never match). */
+  for (const file of sourceFiles) {
+    let content: string;
+    try {
+      content = stripLineComments(await readFile(file, 'utf8'));
+    } catch {
+      continue;
+    }
+    BARE_CPF_LOG_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = BARE_CPF_LOG_RE.exec(content)) !== null) {
+      if (isValidCpf(m[2])) {
+        findings.push({
+          severity: 'high',
+          category: 'lgpd-pii-logs',
+          message: 'CPF number in log statement',
+          file: file.replace(projectRoot() + '/', ''),
+          fix: 'Use a logging library with field masking (e.g., pino redact) and never log CPF values. Log opaque identifiers instead.',
+        });
+        break; // one finding per file
+      }
+    }
+  }
 
   /* 1b. Sensitive field NAMES in logs — triaged (v0.8).
    * 'Error resetting password:' (static message, no data) is not leakage;
@@ -267,7 +355,8 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
   for (const file of sourceFiles) {
     let content: string;
     try {
-      content = await readFile(file, 'utf8');
+      // Commented-out code (`// console.log(password)`) is not live logging.
+      content = stripLineComments(await readFile(file, 'utf8'));
     } catch {
       continue;
     }
@@ -316,12 +405,12 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     });
   }
 
-  /* 2. Cookie consent */
+  /* 2. Cookie consent (comments don't count — a TODO note is not a banner) */
   let hasConsent = false;
   for (const file of uiFiles) {
     let content: string;
     try {
-      content = await readFile(file, 'utf8');
+      content = stripLineComments(await readFile(file, 'utf8'));
     } catch {
       continue;
     }
@@ -346,7 +435,8 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
   for (const file of allFiles) {
     let content: string;
     try {
-      content = await readFile(file, 'utf8');
+      // A route mentioned only in a comment is not a page.
+      content = stripLineComments(await readFile(file, 'utf8'));
     } catch {
       continue;
     }
@@ -405,12 +495,21 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
   for (const file of dsrFiles) {
     let content: string;
     try {
-      content = await readFile(file, 'utf8');
+      content = stripLineComments(await readFile(file, 'utf8'));
     } catch {
       continue;
     }
     if (!hasDeletion && DSR_DELETE_PATTERNS.some((p) => p.test(content))) hasDeletion = true;
     if (!hasExport && DSR_EXPORT_PATTERNS.some((p) => p.test(content))) hasExport = true;
+    // Next.js App Router: `export async function DELETE()` inside a route
+    // file whose path names the account resource.
+    if (
+      !hasDeletion &&
+      /(^|\/)(user|account|me|usuario|conta)[^/]*\/route\.(ts|js|tsx|jsx)$/.test(file) &&
+      /export\s+(?:async\s+)?function\s+DELETE/.test(content)
+    ) {
+      hasDeletion = true;
+    }
   }
   if (!hasDeletion) {
     findings.push({
@@ -437,7 +536,22 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     absolute: true,
     suppressErrors: true,
   });
-  const hasSupabase = existsSync(join(root, 'node_modules', '@supabase'));
+  const hasSupabase =
+    existsSync(join(root, 'node_modules', '@supabase')) ||
+    // A fresh checkout without `npm install` still declares the dependency.
+    (() => {
+      try {
+        const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+        };
+        return Boolean(
+          pkg.dependencies?.['@supabase/supabase-js'] ?? pkg.devDependencies?.['@supabase/supabase-js']
+        );
+      } catch {
+        return false;
+      }
+    })();
   const hasPrisma = existsSync(join(root, 'prisma', 'schema.prisma'));
   if (hasSupabase || hasPrisma) {
     let hasRLS = false;
@@ -463,13 +577,16 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     }
   }
 
-  /* 6. Weak password hashing */
+  /* 6. Weak password hashing — high (not critical): md5/sha1 also serve
+   * legitimate non-password uses (Gravatar, ETags, cache keys, content
+   * addressing), so the finding demands verification, not blind panic. */
   const weakHashFindings = await searchInFiles(
     WEAK_HASH_PATTERNS,
     sourceFiles,
-    'critical',
+    'high',
     'lgpd-password-hashing',
-    'Replace MD5/SHA1 with bcrypt (cost ≥ 12) or Argon2id for password hashing. These algorithms are required by LGPD Art. 46 (appropriate security measures). Example: `import bcrypt from "bcrypt"; bcrypt.hash(password, 12)`'
+    'MD5/SHA1 detected — cryptographically broken for passwords and unsuitable for new designs. If this hashes passwords or signs tokens, replace it with bcrypt (cost ≥ 12) or Argon2id (LGPD Art. 46). Gravatar/ETag/cache uses are acceptable but should be documented.',
+    { stripComments: true }
   );
   findings.push(...weakHashFindings);
 
@@ -478,12 +595,42 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     sourceFiles,
     'critical',
     'lgpd-password-hashing',
-    'Never store passwords in plain text. Always hash with bcrypt (cost ≥ 12) or Argon2id before persisting to the database.'
+    'Never store passwords in plain text. Always hash with bcrypt (cost ≥ 12) or Argon2id before persisting to the database.',
+    { stripComments: true }
   );
   // Deduplicate — avoid adding if already caught by weak hash scan in same file
   for (const f of plainPwdFindings) {
     if (!findings.some((ex) => ex.file === f.file && ex.category === f.category)) {
       findings.push(f);
+    }
+  }
+
+  /* 6b. INSERT ... password ... VALUES — the hashing guard is evaluated per
+   * statement line (the old inline lookahead was vacuous and never excluded
+   * hashed inserts). Both $1 and ? placeholders are accepted. */
+  for (const file of sourceFiles) {
+    let content: string;
+    try {
+      content = stripLineComments(await readFile(file, 'utf8'));
+    } catch {
+      continue;
+    }
+    INSERT_PASSWORD_RE.lastIndex = 0;
+    let im: RegExpExecArray | null;
+    while ((im = INSERT_PASSWORD_RE.exec(content)) !== null) {
+      const lineStart = content.lastIndexOf('\n', im.index) + 1;
+      let lineEnd = content.indexOf('\n', im.index);
+      if (lineEnd === -1) lineEnd = content.length;
+      const line = content.slice(lineStart, lineEnd);
+      if (HASHING_GUARD_RE.test(line)) continue; // bcrypt.hash(...) etc.
+      findings.push({
+        severity: 'critical',
+        category: 'lgpd-password-hashing',
+        message: 'Possible plaintext password inserted into database',
+        file: file.replace(projectRoot() + '/', ''),
+        fix: 'Never store passwords in plain text. Always hash with bcrypt (cost ≥ 12) or Argon2id before persisting to the database.',
+      });
+      break; // one finding per file
     }
   }
 

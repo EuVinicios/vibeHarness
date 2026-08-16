@@ -55,6 +55,7 @@ jsonFlag(
     .description(
       'One-command setup for your AI client (claude-code, cursor, opencode, vscode-copilot, windsurf, antigravity, qwen): rules + MCP server + skills'
     )
+    .option('--force', 'Overwrite existing client rules/extras files (default: skip files that already exist)')
     .action(installCommand)
 );
 

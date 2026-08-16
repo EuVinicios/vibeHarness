@@ -35,6 +35,17 @@ export async function readScoreCache(root?: string): Promise<ScoreCache | null> 
     ) {
       return null;
     }
+    // The cache lives inside the cloned repo (untrusted input). Validate the
+    // sections payload field-by-field before it reaches MCP/status output.
+    if (parsed.sections !== undefined) {
+      if (typeof parsed.sections !== 'object' || parsed.sections === null || Array.isArray(parsed.sections)) {
+        return null;
+      }
+      for (const section of Object.values(parsed.sections)) {
+        if (typeof section !== 'object' || section === null) return null;
+        if (typeof section.score !== 'number' || typeof section.max !== 'number') return null;
+      }
+    }
     return parsed;
   } catch {
     return null;

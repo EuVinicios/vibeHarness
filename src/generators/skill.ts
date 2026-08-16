@@ -1,7 +1,10 @@
+import { sanitizeForPrompt } from '../ui/report.js';
+
 export function skillMdTemplate(projectName: string): string {
+  const safeName = sanitizeForPrompt(projectName);
   return `---
 name: vibeharness
-description: Production harness for vibecoding in ${projectName}. Use when starting a feature (prd/plan), preparing AI context (pack), or checking production readiness (audit/doctor). Invokes the vibe-harness CLI — never re-implement its logic.
+description: Production harness for vibecoding in ${safeName}. Use when starting a feature (prd/plan), preparing AI context (pack), or checking production readiness (audit/doctor). Invokes the vibe-harness CLI — never re-implement its logic.
 ---
 
 # VibeHarness Skill
@@ -111,8 +114,10 @@ ${spec.body}
 }
 
 export function agentsMdTemplate(projectName: string, stack: string[]): string {
-  const stackLine = stack.length ? stack.join(', ') : 'not detected yet';
-  return `# AGENTS.md — ${projectName}
+  const safeName = sanitizeForPrompt(projectName);
+  const safeStack = stack.map((item) => sanitizeForPrompt(item));
+  const stackLine = safeStack.length ? safeStack.join(', ') : 'not detected yet';
+  return `# AGENTS.md — ${safeName}
 
 > Guidance for AI coding agents (opencode, Codex, Cursor, and friends).
 > Maintained by **vibe-harness** — re-run \`npx @vibeharness/cli init\` to regenerate.

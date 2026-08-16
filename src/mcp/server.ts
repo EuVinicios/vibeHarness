@@ -207,13 +207,14 @@ export function buildServer(): McpServer {
     {
       title: 'Vibe install',
       description:
-        'One-command setup of AI clients: writes the client rules file and registers this MCP server in the client config. Without client, returns the list of supported clients to choose from (ask the user). Accepts a single id, a comma-separated list (e.g. "cursor,opencode") or "all".',
+        'One-command setup of AI clients: writes the client rules file and registers this MCP server in the client config (existing servers are preserved; an invalid client config aborts that client loudly instead of being clobbered). Without client, returns the list of supported clients to choose from (ask the user). Accepts a single id, a comma-separated list (e.g. "cursor,opencode") or "all". Existing rules/extras files are skipped unless force=true.',
       inputSchema: {
         client: z.string().optional().describe('Client id(s): comma-separated list, "all", or one of claude-code, cursor, opencode, vscode-copilot, windsurf, antigravity, qwen'),
+        force: z.boolean().optional().describe('Overwrite existing client rules/extras files (default: skip files that already exist)'),
       },
     },
-    async ({ client }) =>
-      exec(() => installAction({ client, requireChoice: !client }))
+    async ({ client, force }) =>
+      exec(() => installAction({ client, force, requireChoice: !client }))
   );
 
   return server;

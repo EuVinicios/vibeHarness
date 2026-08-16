@@ -209,6 +209,7 @@ export async function planAction(opts: PlanActionOptions = {}): Promise<ActionRe
 
   data.apply = applyResult;
   data.wiringInstructions = wiringInstructions;
+  for (const warning of applyResult.auditWarnings) notes.push(warning);
 
   return {
     ok: applyResult.failedInstalls.length === 0,

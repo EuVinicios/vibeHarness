@@ -437,7 +437,7 @@ registry/
 ├── catalog.json              ← Curated tool catalog (auto-synced weekly)
 └── clients.json              ← AI client adapters (new client = new JSON entry)
 
-tests/                        ← 22 suites / 161 tests — 1:1 with src (incl. actions + MCP in-memory)
+tests/                        ← 29 suites / 278 tests — 1:1 with src (incl. actions + MCP in-memory)
 ```
 
 ---
@@ -447,7 +447,7 @@ tests/                        ← 22 suites / 161 tests — 1:1 with src (incl. 
 ```bash
 npm install
 npm run build    # Compile TypeScript → dist/
-npm test         # Run 161 tests across 22 suites
+npm test         # Run 278 tests across 29 suites
 npm run lint     # ESLint
 npm run knip     # Dead-code / unused-export check
 

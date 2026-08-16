@@ -71,23 +71,27 @@ function majorBehind(current?: string, latest?: string): boolean {
   return !Number.isNaN(a) && !Number.isNaN(b) && b > a;
 }
 
-async function getOutdated(): Promise<Record<string, OutdatedEntry>> {
+async function getOutdated(): Promise<{ outdated: Record<string, OutdatedEntry>; npmMissing: boolean }> {
   try {
     const { stdout } = await execFileAsync('npm', ['outdated', '--json'], {
       cwd: projectRoot(),
       maxBuffer: 10 * 1024 * 1024,
     });
-    return JSON.parse(stdout || '{}') as Record<string, OutdatedEntry>;
+    return { outdated: JSON.parse(stdout || '{}') as Record<string, OutdatedEntry>, npmMissing: false };
   } catch (err: unknown) {
+    // ENOENT = npm is not installed — that is NOT "all up to date".
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { outdated: {}, npmMissing: true };
+    }
     const stdout = (err as { stdout?: string }).stdout;
     if (stdout) {
       try {
-        return JSON.parse(stdout) as Record<string, OutdatedEntry>;
+        return { outdated: JSON.parse(stdout) as Record<string, OutdatedEntry>, npmMissing: false };
       } catch {
-        return {};
+        return { outdated: {}, npmMissing: false };
       }
     }
-    return {};
+    return { outdated: {}, npmMissing: false };
   }
 }
 
@@ -111,7 +115,18 @@ async function checkGithubPosture(checks: DoctorCheck[]): Promise<void> {
       cwd: projectRoot(),
     });
     slug = trustedGithubSlug(stdout);
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      checks.push({
+        id: 'git-missing',
+        group: 'platform',
+        label: 'git',
+        status: 'info',
+        detail: 'git not found on PATH — install it to enable platform posture checks',
+        blocking: false,
+      });
+      return;
+    }
     /* no git remote */
   }
   if (!slug) {
@@ -248,9 +263,18 @@ export async function doctorAction(opts: DoctorActionOptions = {}): Promise<Acti
 
   // 3. Outdated dependencies
   if (existsSync(join(root, 'package.json'))) {
-    const outdated = await getOutdated();
+    const { outdated, npmMissing } = await getOutdated();
     const names = Object.keys(outdated);
-    if (names.length === 0) {
+    if (npmMissing) {
+      checks.push({
+        id: 'outdated',
+        group: 'deps',
+        label: 'Dependencies',
+        status: 'warn',
+        detail: 'npm not found on PATH — install Node.js/npm so outdated dependencies can be checked',
+        blocking: false,
+      });
+    } else if (names.length === 0) {
       checks.push({ id: 'outdated', group: 'deps', label: 'Dependencies', status: 'ok', detail: 'all up to date', blocking: false });
     } else {
       const majors = names.filter((n) => majorBehind(outdated[n].current, outdated[n].latest));
