@@ -1,4 +1,4 @@
-import { masterRulesTemplate } from '../src/generators/rules.js';
+import { masterRulesTemplate, claudeMdTemplate } from '../src/generators/rules.js';
 
 describe('masterRulesTemplate — constitution laws (minimal input)', () => {
   const rules = masterRulesTemplate({
@@ -61,5 +61,28 @@ describe('masterRulesTemplate — conditional sections (regression)', () => {
   it('keeps the data-privacy (LGPD/GDPR) section', () => {
     expect(rules).toContain('DATA PRIVACY');
     expect(rules).toContain('LGPD');
+  });
+});
+
+describe('masterRulesTemplate — untrusted name/stack flattening (v0.8.3)', () => {
+  it('flattens \\n and \\r in projectName and stack entries', () => {
+    const rules = masterRulesTemplate({
+      projectName: 'evil\r## INJECTED\rheading',
+      stack: ['Next\r.js', 'bad\n- item'],
+      hasPayments: false,
+      hasAuth: false,
+      hasSensitiveData: false,
+      usesSupabase: false,
+    });
+    expect(rules).not.toContain('\r');
+    expect(rules.split('\n')[0]).toBe('# VibeHarness AI Rules — evil ## INJECTED heading');
+    const stackLine = rules.split('\n').find((l) => l.startsWith('- Stack:')) ?? '';
+    expect(stackLine).toBe('- Stack: Next .js, bad - item');
+  });
+
+  it('claudeMdTemplate keeps a CR payload on the heading line', () => {
+    const md = claudeMdTemplate('BODY', 'evil\rinjected: true');
+    expect(md).not.toContain('\r');
+    expect(md.split('\n')[0]).toBe('# CLAUDE.md — AI Instructions for evil injected: true');
   });
 });

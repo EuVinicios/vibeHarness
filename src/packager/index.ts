@@ -63,20 +63,26 @@ function isSafeValue(value: string): boolean {
 function redactLine(line: string): string {
   // Replace the secret substring itself — works for any format the curated
   // patterns match (quoted, JSON, bare, URI-embedded), not just `= "..."`.
+  // Global: minified bundles put several secrets on one line; without `g`
+  // only the first occurrence per pattern would be redacted. The shared
+  // SECRET_PATTERNS stay flag-free (stateful `.test()` elsewhere), so the
+  // global variant is built here.
   let out = line;
   for (const [pattern] of SECRET_PATTERNS) {
-    out = out.replace(pattern, REDACTED);
+    const flags = pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g';
+    out = out.replace(new RegExp(pattern.source, flags), REDACTED);
   }
-  // Generic fallbacks — keep the identifier, redact only the value.
+  // Generic fallbacks — keep the identifier, redact only the value. Loops so
+  // several assignments on one (minified) line are all handled; stops early
+  // on a known-safe value (SHA/substitution), matching the pre-0.8.3 contract.
   for (const pattern of GENERIC_ASSIGN_PATTERNS) {
-    const match = out.match(pattern);
-    if (match) {
+    let match = out.match(pattern);
+    while (match) {
       // match[1] is always the kept prefix (identifier/assignment) — the rest is the value.
       const value = match[0].slice(match[1].length).trim();
-      if (!isSafeValue(value)) {
-        out = out.replace(pattern, `$1${REDACTED}`);
-      }
-      break;
+      if (isSafeValue(value)) break;
+      out = out.replace(pattern, `$1${REDACTED}`);
+      match = out.match(pattern);
     }
   }
   return out;

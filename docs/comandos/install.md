@@ -8,6 +8,7 @@ npx @vibeharness/cli install                    # detecta (ou pergunta) o client
 npx @vibeharness/cli install claude-code        # explícito
 npx @vibeharness/cli install cursor,opencode    # vários de uma vez
 npx @vibeharness/cli install all                # todos os suportados
+npx @vibeharness/cli install --force            # sobrescreve regras/extras existentes
 npx @vibeharness/cli install --json             # saída máquina-legível
 ```
 
@@ -32,6 +33,29 @@ Clientes: `claude-code`, `cursor`, `opencode`, `vscode-copilot`, `windsurf`,
 
 Depois: **reinicie o cliente e aprove o servidor MCP**. A partir daí a IA usa
 as tools `vibe_*` — veja [Usando com a sua IA](../usando-com-sua-ia.md).
+
+!!! success "Política de escrita segura (v0.8.2)"
+    - **Skip-if-exists por padrão**: regras/extras que já existem são mantidos
+      — use `--force` para sobrescrever de propósito.
+    - **Config inválida = erro, nunca perda**: se a config do cliente existir
+      mas não for JSON válido (ou não for um objeto), o install **falha alto
+      sem escrever nada** — nada de substituir sua config por engano.
+    - **Backup antes do merge**: configs válidas recebem um `.vibe-bak` ao
+      lado antes de serem reescritas.
+    - **Escrita atômica e sem symlinks**: cada arquivo é escrito em temporário
+      e renomeado; o install nunca escreve através de um symlink plantado no
+      projeto.
+    - **Falha isolada**: um cliente com problema não aborta os demais — o
+      resultado lista os erros por cliente.
+
+!!! success "Hardening de certificação (v0.8.3)"
+    - **Symlink = erro, nunca falso sucesso**: se a config MCP do cliente for
+      um symlink (ou qualquer diretório do caminho for symlink para fora do
+      projeto), o install **reporta a recusa** em vez de dizer "merged".
+    - **Registro pinado por versão**: o servidor é registrado como
+      `npx -y @vibeharness/cli@<versão> mcp` — sem floating `latest`.
+    - **Isolamento para testes/CI**: paths globais (Windsurf) respeitam a
+      variável `VIBE_HOME` como âncora alternativa ao home real.
 
 ## Adaptadores declarativos
 

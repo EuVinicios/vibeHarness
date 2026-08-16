@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-08-16 — "Auditoria final de certificação: hardening pós-release-gate"
+
+Resposta à auditoria final de certificação (release gate): análise estática
+linha-a-linha + GitHub API ao vivo + 9 cenários adversariais dinâmicos.
+Todos os achados HIGH/MEDIUM foram corrigidos; suíte cresceu de 278 para 334
+testes (29 → 31 suites).
+
+### Fixed
+
+- **P0 — Injeção via CR solitário nos templates gerados:** `sanitizeForPrompt` preservava `\r` (0x0D), e o flattening `/\r?\n/` só cobria LF/CRLF — um `package.json` malicioso com CR no `name` escapava do comentário YAML no `security.yml` gerado (bypass silencioso do gate de segurança do usuário). Agora todo `\r` é removido, e um helper único `sanitizeInline` achata **todas** as formas de quebra de linha (`\n`, `\r`, CRLF, NEL, U+2028/29) em todos os pontos de interpolação: workflow, rules (CLAUDE.md/.cursorrules/Windsurf/Copilot), SKILL.md/AGENTS.md, PRD, SPEC, CONSTITUTION, política LGPD e STACK.md.
+- **P1 — Falso sucesso do instalador com config MCP symlinkada:** `mergeMcpConfig` ignorava o retorno de `writeFileSafe` — se a config do cliente fosse um symlink, nada era escrito mas o install reportava "MCP merged". Agora falha alto por cliente (`refused to write MCP config`), com o arquivo-alvo intacto.
+- **P1 — Fuga por diretório ancestral symlinkado:** `.cursor -> /fora` plantado no repo redirecionava escritas de rules/MCP para fora do projeto (provado dinamicamente). Novo `hasSymlinkedAncestorSegment` checa cada segmento de diretório dos paths de adaptadores (rules, MCP, skills, comandos) contra o âncora (projectRoot ou home).
+- **P1 — INSERT multi-linha invisível ao scanner LGPD:** `INSERT INTO users (email, password)` + `VALUES (...)` em template literal — o estilo padrão de SQL cru — nunca era detectado (`[^;\n]*` não cruza linha). Regex agora usa janelas limitadas, com guard de hashing avaliado no statement + resto da linha + linha anterior.
+- **P1 — Sites estáticos penalizados 0/10 em infra:** qualquer `.html`/`.tsx` ativava os checks de healthcheck/rate-limit/error-handler — landing pages e `next export` não têm servidor para hospedar nada disso. Novo carve-out `isStaticOnlySite` (markup sem rotas/marcadores de backend e sem framework SSR) retorna score cheio + finding de escopo. CLIs continuam com o gating existente.
+- **Acurácia LGPD:** CPF **formatado** agora também exige checksum válido (números de lote tipo "100 200 300 05" param de pontuar); PII após chamada auxiliar (`console.log(getUser(), email)`) não é mais cegada pelo primeiro `)`; consentimento por prosa ("estamos em conformidade com a LGPD") não satisfaz mais — só markers reais ou LGPD/GDPR pareado com palavra de mecanismo (banner/modal/consent…); DSR (LGPD Art. 18) agora gateado em **persistência de dados** (deps de banco ou artefatos de migration) — sem persistência, vira finding de escopo informativo; App Router estendido para segmentos dinâmicos (`app/api/user/[id]/route.ts`) e `export const DELETE =`.
+- **Comentários nunca satisfazem heurísticas (família completa):** stripper agora remove blocos de comentário JS e HTML além de `//` (LGPD, infra e acessibilidade); SQL `--` removido no scan de RLS (um `CREATE POLICY` comentado em migration falsificava evidência de RLS); `#` removido em workflows/Dockerfiles/compose no scanner de banco (`db push` comentado não dispara mais).
+- **Acurácia banco:** varredura de **todos** os package.json do monorepo (scripts de workspace eram invisíveis); Dockerfiles em qualquer profundidade/casing + `*.dockerfile` + `docker-compose*/compose*` cobertos; ORMs adicionais (mikro-orm, objection, @nestjs/typeorm).
+- **Acurácia acessibilidade (família de falsos positivos):** inputs com semântica própria (`hidden`/`submit`/`button`/`reset`) não são mais contados sem label; associação implícita (input dentro de `<label>`) reconhecida; SVG `<image>` não é mais duplamente contado (next/image ficou case-sensitive); markup comentado não é pontuado; botões self-closing (`<button />`) e botões só com expressão JSX agora detectados.
+- **Acurácia infra:** health routes do App Router por filesystem (`app/api/health/route.ts`) e formas prefixadas/sub-rotas (`/api/v1/health`, `/api/health/live`) reconhecidas; arquivos de teste não podem mais satisfazer heurísticas; `errorHandler` agora também exige marcador de backend; diretório `.github/workflows` vazio não conta como CI.
+- **Pack sem vazamento em arquivos minificados:** redação agora global por padrão — múltiplos segredos na mesma linha são todos redigidos (antes só o primeiro por padrão).
+- **Instalador:** novo override `VIBE_HOME` para paths ancorados em home (testes/CI exercitam o Windsurf global sem tocar no `~` real); escrita atômica com criação exclusiva (O_EXCL) do arquivo temporário — nome previsível `.tmp-<pid>` não pode mais ser plantado como symlink (TOCTOU fechado).
+- **Registro MCP pinado por versão:** `vibe install` registra `npx -y @vibeharness/cli@<versão> mcp` nos clientes — o floating `latest` era exatamente o anti-padrão que o projeto condena para servidores de terceiros.
+- **Supply chain do próprio repo:** comentários `actions/checkout@v4.4.0` mentiam sobre o SHA v7.0.1 (bump do Dependabot) em 6 workflows; corrigidos para v7.0.1, e pins sem comentário do `pages.yml` verificados contra a GitHub API e comentados (configure-pages v5.0.0, upload-pages-artifact v4.0.0, deploy-pages v5.0.0). Novo teste-tripwire trava SHA ↔ comentário de todos os workflows do repo.
+- **Starters:** webhook Stripe agora envolve `constructEvent` em try/catch (assinatura inválida → 400 genérico, sem stack trace).
+- **Higiene:** `docs-build/` nos ignores do ESLint (1.467 falsos erros locais pós-build do mkdocs); `EXCLUDED_DIRS` cobre diretórios de saída comuns (`out`, `.svelte-kit`, `.nuxt`, `.output`, `.vercel`, `.turbo`, `.wrangler`, `storybook-static`, `docs-build`, …). CI falha alto se a versão do CLI não puder ser lida (nunca mais workflow com `npx @vibeharness/cli` sem pin).
+
+### Added
+
+- **Categoria curada "Linting & Estilo"** no registry: ESLint + Prettier (metadata verificada ao vivo na GitHub API em 2026-08-16). `plan` recomenda no STACK.md; `plan --apply` instala os dois — ESLint com flat config (`eslint.config.mjs`, regras no-eval) e Prettier com `.prettierrc.json`/`.prettierignore`. Par espelhando o padrão Vitest+Playwright: ordem por estrelas sozinha instalaria só o formatador.
+- **Novos testes:** 3 cenários de symlink/isolamento do instalador, suite `tests/fs.test.ts` (arquivo temporário exclusivo + ancestrais), 9 regressões do scanner LGPD, 7 do infra, 4 do banco, 6 da acessibilidade, 2 do pack (multi-segredo por linha), drift guard de workflows do repo, testes de CR em todos os templates.
+
 ## [0.8.2] - 2026-08-16 — "Auditoria integral de pré-lançamento: segurança do installer, supply chain e acurácia dos scanners"
 
 Resposta à auditoria externa de pré-lançamento (veredito CONDITIONAL GO, 9

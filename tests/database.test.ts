@@ -164,3 +164,56 @@ describe('scanDatabase — other ORMs', () => {
     ).toBe(true);
   });
 });
+
+describe('scanDatabase — v0.8.3 regressions', () => {
+  it('ignores `db push` inside YAML comments (legacy notes are not live commands)', async () => {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'app', scripts: { deploy: 'prisma migrate deploy' } }),
+      'utf8'
+    );
+    await mkdir(join(tmpDir, '.github', 'workflows'), { recursive: true });
+    await writeFile(
+      join(tmpDir, '.github', 'workflows', 'deploy.yml'),
+      'jobs:\n  deploy:\n    steps:\n      # legacy: npx prisma db push (removed 2026-05, use migrate deploy)\n      - run: npx prisma migrate deploy\n',
+      'utf8'
+    );
+    const result = await scanDatabase();
+    expect(result.findings.some((f) => f.message.includes('db push'))).toBe(false);
+  });
+
+  it('flags `db push` in a monorepo workspace package.json', async () => {
+    await writeFile(join(tmpDir, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['packages/*'] }), 'utf8');
+    await mkdir(join(tmpDir, 'packages', 'api'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'packages', 'api', 'package.json'),
+      JSON.stringify({ name: 'api', scripts: { deploy: 'prisma db push' } }),
+      'utf8'
+    );
+    const result = await scanDatabase();
+    expect(result.findings.some((f) => f.message.includes('db push'))).toBe(true);
+  });
+
+  it('flags `db push` in nested and lowercase Dockerfiles', async () => {
+    await writeFile(join(tmpDir, 'package.json'), JSON.stringify({ name: 'app' }), 'utf8');
+    await mkdir(join(tmpDir, 'infra'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'infra', 'dockerfile'),
+      'FROM node:20\nRUN npx prisma db push\n',
+      'utf8'
+    );
+    const result = await scanDatabase();
+    expect(result.findings.some((f) => f.message.includes('db push'))).toBe(true);
+  });
+
+  it('flags `db push` in docker-compose files', async () => {
+    await writeFile(join(tmpDir, 'package.json'), JSON.stringify({ name: 'app' }), 'utf8');
+    await writeFile(
+      join(tmpDir, 'docker-compose.yml'),
+      'services:\n  migrate:\n    image: app\n    command: npx drizzle-kit push\n',
+      'utf8'
+    );
+    const result = await scanDatabase();
+    expect(result.findings.some((f) => f.message.includes('db push'))).toBe(true);
+  });
+});

@@ -14,7 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sanitizeForPrompt } from '../ui/report.js';
+import { sanitizeInline } from '../ui/report.js';
 
 // actions/checkout@v4.4.0 (verified against the GitHub API)
 export const CHECKOUT_SHA = '11d5960a326750d5838078e36cf38b85af677262';
@@ -38,9 +38,15 @@ function readOwnVersion(): string | null {
 }
 
 export function securityWorkflowTemplate(projectName: string): string {
-  const name = sanitizeForPrompt(projectName, 80).replace(/\r?\n/g, ' ');
+  const name = sanitizeInline(projectName, 80);
   const version = readOwnVersion();
-  const cliSpec = version ? `@vibeharness/cli@${version}` : '@vibeharness/cli';
+  if (!version) {
+    // Fail loud instead of emitting an unpinned `npx --yes @vibeharness/cli`:
+    // a floating latest in user CI is the exact supply-chain hole this
+    // template exists to prevent.
+    throw new Error('Cannot determine the CLI version — refusing to generate a workflow with an unpinned audit step');
+  }
+  const cliSpec = `@vibeharness/cli@${version}`;
   return `# Security gate for ${name} — installed by vibe-harness.
 # Secret scanning (gitleaks) + dependency CVEs (npm audit) + audit score gate.
 # Actions are pinned by commit SHA on purpose — update them deliberately.

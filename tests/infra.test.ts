@@ -152,3 +152,94 @@ describe('scanInfra — .vibe/auditignore', () => {
     expect(result.findings.some((f) => f.message.includes('rate-limiting'))).toBe(true);
   });
 });
+
+describe('scanInfra — v0.8.3 regressions', () => {
+  it('static sites (markup only) get full score — no server obligations', async () => {
+    await mkdir(join(tmpDir, 'public'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'public', 'index.html'),
+      '<html><body><h1>Landing</h1></body></html>\n',
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.score).toBe(result.maxScore);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].category).toBe('infra-scope');
+    expect(result.findings[0].message).toContain('Static site');
+  });
+
+  it('an SSR framework dependency is never classified as static', async () => {
+    await writeFile(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'web', version: '0.0.0', dependencies: { next: '^15.0.0' } }),
+      'utf8'
+    );
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function P() { return <div/>; }\n', 'utf8');
+    const result = await scanInfra();
+    expect(result.findings.some((f) => f.message.includes('Static site'))).toBe(false);
+  });
+
+  it('recognises App Router filesystem health routes (app/api/health/route.ts)', async () => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `const app = express();\napp.use(rateLimit({ max: 100 }));\napp.use(errorHandler());\n`,
+      'utf8'
+    );
+    await mkdir(join(tmpDir, 'app', 'api', 'health'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'app', 'api', 'health', 'route.ts'),
+      `export function GET() { return Response.json({ status: 'ok' }); }\n`,
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.findings.some((f) => f.message.includes('/health'))).toBe(false);
+  });
+
+  it.each(['/api/v1/health', '/api/health/live'])('recognises %s (prefixed/sub-routed health)', async (route) => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `const app = express();\napp.get('${route}', handler);\n`,
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.findings.some((f) => f.message.includes('/health'))).toBe(false);
+  });
+
+  it('test fixtures cannot satisfy the infra heuristics', async () => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `const app = express();\napp.get('/orders', handler);\n`,
+      'utf8'
+    );
+    await mkdir(join(tmpDir, 'tests'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'tests', 'mockServer.ts'),
+      `const app = express();\napp.use(rateLimit({ max: 1 }));\napp.use(errorHandler());\napp.get('/health', h);\n`,
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.findings.some((f) => f.message.includes('rate-limiting'))).toBe(true);
+    expect(result.findings.some((f) => f.message.includes('/health'))).toBe(true);
+  });
+
+  it('block comments do not satisfy heuristics', async () => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `const app = express();\n/* app.get('/healthz', handler) */\napp.use(rateLimit({ max: 1 }));\napp.use(errorHandler());\n`,
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.findings.some((f) => f.message.includes('/health'))).toBe(true);
+  });
+
+  it('an empty .github/workflows directory is not CI', async () => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `const app = express();\napp.get('/health', handler);\napp.use(rateLimit({ max: 1 }));\napp.use(errorHandler());\n`,
+      'utf8'
+    );
+    await mkdir(join(tmpDir, '.github', 'workflows'), { recursive: true });
+    const result = await scanInfra();
+    expect(result.findings.some((f) => f.message.includes('GitHub Actions'))).toBe(true);
+  });
+});

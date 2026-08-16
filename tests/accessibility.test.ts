@@ -147,3 +147,65 @@ describe('scanAccessibility — .vibe/auditignore', () => {
     expect(result.score).toBe(result.maxScore);
   });
 });
+
+describe('scanAccessibility — v0.8.3 regressions (false-positive family)', () => {
+  it('does NOT flag self-labelling input types (hidden/submit/button/reset)', async () => {
+    await writeFile(
+      join(tmpDir, 'form.tsx'),
+      `export const F = () => (\n  <form>\n    <input type="hidden" name="csrf" />\n    <input type="submit" value="Go" />\n    <label htmlFor="n">Name</label>\n    <input id="n" />\n  </form>\n);\n`,
+      'utf8'
+    );
+    const result = await scanAccessibility();
+    expect(result.findings.some((f) => f.message.includes('without an associated label'))).toBe(false);
+  });
+
+  it('recognises implicit label association (input wrapped in <label>)', async () => {
+    await writeFile(
+      join(tmpDir, 'form2.tsx'),
+      `export const F = () => (\n  <label>\n    Full name\n    <input name="name" />\n  </label>\n);\n`,
+      'utf8'
+    );
+    const result = await scanAccessibility();
+    expect(result.findings.some((f) => f.message.includes('without an associated label'))).toBe(false);
+  });
+
+  it('does NOT double-count SVG <image> as <img>/<Image>', async () => {
+    await writeFile(
+      join(tmpDir, 'chart.tsx'),
+      `export const S = () => (\n  <svg><image href="/x.png" width="10" /></svg>\n);\n`,
+      'utf8'
+    );
+    const result = await scanAccessibility();
+    expect(result.findings.some((f) => f.message.includes('missing alt'))).toBe(false);
+  });
+
+  it('commented-out example markup is not scored', async () => {
+    await writeFile(
+      join(tmpDir, 'docs.tsx'),
+      `// Example: <button title="x"></button>\n{/* <img src="old.png"> */}\nexport const Ok = () => <button>Save</button>;\n`,
+      'utf8'
+    );
+    const result = await scanAccessibility();
+    expect(result.findings.some((f) => f.category === 'accessibility')).toBe(false);
+  });
+
+  it('flags self-closing icon buttons without aria-label', async () => {
+    await writeFile(
+      join(tmpDir, 'icon.tsx'),
+      `export const I = () => <button onClick={close} />;\n`,
+      'utf8'
+    );
+    const result = await scanAccessibility();
+    expect(result.findings.some((f) => f.message.includes('<button>'))).toBe(true);
+  });
+
+  it('JSX expression-only buttons are not treated as labelled text', async () => {
+    await writeFile(
+      join(tmpDir, 'expr.tsx'),
+      `export const E = () => <button>{icon}</button>;\n`,
+      'utf8'
+    );
+    const result = await scanAccessibility();
+    expect(result.findings.some((f) => f.message.includes('<button>'))).toBe(true);
+  });
+});

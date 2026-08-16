@@ -75,4 +75,21 @@ describe('untrusted projectName/stack sanitisation', () => {
     expect(skillMdTemplate('my-app')).toContain('vibecoding in my-app');
     expect(agentsMdTemplate('my-app', []).split('\n')[0]).toBe('# AGENTS.md — my-app');
   });
+
+  it('flattens every line-break form (\\n, \\r, CRLF) — frontmatter injection guard', () => {
+    // v0.8.3: \r alone used to survive and could inject YAML frontmatter keys
+    // into SKILL.md or new markdown headings into AGENTS.md.
+    const crName = 'evil\rname: pwned\rdescription: x';
+    const skill = skillMdTemplate(crName);
+    expect(skill).not.toContain('\r');
+    const descriptionLine = skill.split('\n').find((l) => l.startsWith('description:')) ?? '';
+    expect(skill.split('\n').filter((l) => l.startsWith('description:'))).toHaveLength(1);
+    expect(descriptionLine).toContain('evil');
+
+    const agents = agentsMdTemplate('evil\r## Injected\rtext', ['Next\r.js']);
+    expect(agents).not.toContain('\r');
+    expect(agents.split('\n')[0]).toBe('# AGENTS.md — evil ## Injected text');
+    const stackLine = agents.split('\n').find((l) => l.startsWith('- Stack:')) ?? '';
+    expect(stackLine).toBe('- Stack: Next .js');
+  });
 });

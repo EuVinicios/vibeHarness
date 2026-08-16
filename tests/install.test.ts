@@ -1,7 +1,13 @@
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { installAction } from '../src/actions/install.js';
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const pkgVersion = (
+  JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string }
+).version;
 
 function makeTmp(packageName: string): string {
   // Keep the tmp prefix filesystem-safe: scoped package names contain '/'.
@@ -50,7 +56,7 @@ describe('installAction — MCP server registration', () => {
     expect(result.notes?.some((n) => n.includes('self-install detected'))).toBe(true);
   }, 20_000);
 
-  it('regular projects keep the npx invocation', async () => {
+  it('regular projects pin the CLI version in the npx invocation (no floating latest)', async () => {
     const dir = makeTmp('my-app');
     dirs.push(dir);
     process.chdir(dir);
@@ -62,7 +68,7 @@ describe('installAction — MCP server registration', () => {
     const servers = settings.mcpServers as Record<string, { command: string; args: string[] }>;
     expect(servers['vibe-harness']).toEqual({
       command: 'npx',
-      args: ['-y', '@vibeharness/cli', 'mcp'],
+      args: ['-y', `@vibeharness/cli@${pkgVersion}`, 'mcp'],
     });
   }, 20_000);
 
@@ -207,5 +213,76 @@ describe('installAction — user-file safety (v0.8.2)', () => {
     expect((config.mcp as Record<string, unknown>)['vibe-harness']).toBeDefined();
     expect((config.mcp as Record<string, unknown>)['other']).toEqual({});
     expect(existsSync(join(dir, 'opencode.json'))).toBe(false);
+  }, 30_000);
+});
+
+describe('installAction — symlink + isolation hardening (v0.8.3)', () => {
+  let prevCwd: string;
+  let prevCi: string | undefined;
+  let prevVibeHome: string | undefined;
+  const dirs: string[] = [];
+
+  beforeAll(() => {
+    prevCwd = process.cwd();
+    prevCi = process.env.CI;
+    prevVibeHome = process.env.VIBE_HOME;
+    process.env.CI = '1';
+  });
+
+  afterAll(() => {
+    process.chdir(prevCwd);
+    if (prevCi === undefined) delete process.env.CI;
+    else process.env.CI = prevCi;
+    if (prevVibeHome === undefined) delete process.env.VIBE_HOME;
+    else process.env.VIBE_HOME = prevVibeHome;
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reports a HARD FAILURE (never "merged") when the MCP config itself is a symlink', async () => {
+    const dir = makeTmp('link-mcp-app');
+    dirs.push(dir);
+    writeFileSync(join(dir, 'mcp-target.json'), JSON.stringify({ mcpServers: { keep: { command: 'x' } } }));
+    symlinkSync(join(dir, 'mcp-target.json'), join(dir, '.mcp.json'));
+    process.chdir(dir);
+
+    const result = await installAction({ client: 'claude-code', force: true });
+    // The pre-0.8.3 behaviour returned ok:true + "MCP merged" while writing
+    // nothing — a silent false success. Now the client fails loud.
+    expect(result.ok).toBe(false);
+    expect(result.data.errors.some((e) => e.includes('refused to write MCP config'))).toBe(true);
+    expect(readFileSync(join(dir, 'mcp-target.json'), 'utf8')).not.toContain('vibe-harness');
+  }, 30_000);
+
+  it('refuses to write through a symlinked ANCESTOR directory (repo-planted escape)', async () => {
+    const dir = makeTmp('link-dir-app');
+    dirs.push(dir);
+    const outside = join(dir, 'outside-escape');
+    mkdirSync(outside);
+    symlinkSync(outside, join(dir, '.cursor'));
+    process.chdir(dir);
+
+    const result = await installAction({ client: 'cursor', force: true });
+    expect(result.ok).toBe(false);
+    expect(result.data.errors.some((e) => e.includes('symlinked directory'))).toBe(true);
+    // Nothing may land outside the project root.
+    expect(existsSync(join(outside, 'mcp.json'))).toBe(false);
+    expect(existsSync(join(outside, 'rules'))).toBe(false);
+  }, 30_000);
+
+  it('writes the Windsurf global config under VIBE_HOME, never the real ~', async () => {
+    const dir = makeTmp('windsurf-app');
+    dirs.push(dir);
+    const fakeHome = join(dir, 'fakehome');
+    mkdirSync(fakeHome);
+    writeFileSync(join(dir, '.windsurfrules'), '# rules\n');
+    process.chdir(dir);
+    process.env.VIBE_HOME = fakeHome;
+
+    const result = await installAction({ client: 'windsurf' });
+    expect(result.ok).toBe(true);
+    const configPath = join(fakeHome, '.codeium', 'windsurf', 'mcp_config.json');
+    expect(existsSync(configPath)).toBe(true);
+    const config = readJson(configPath);
+    expect((config.mcpServers as Record<string, unknown>)['vibe-harness']).toBeDefined();
   }, 30_000);
 });

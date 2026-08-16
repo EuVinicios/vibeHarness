@@ -92,6 +92,20 @@ falsas de propósito), crie um arquivo `.vibe/auditignore` na raiz do projeto �
 mesma sintaxe do `.gitignore` — listando esses caminhos. O `audit` deixa de
 varrer o que estiver lá, sem esconder nada que você não tenha pedido.
 
+!!! info "Precisão estrutural (v0.8.2)"
+    CPF de 11 dígitos só pontua com **checksum válido** (IDs e timestamps
+    nunca viram PII), telefone exige marcador BR ou separadores, f-strings
+    Python entram na triagem dinâmica e **código comentado nunca satisfaz
+    heurística** — logs, consentimento, páginas e rate limit.
+
+!!! info "Acurácia de certificação (v0.8.3)"
+    CPF **formatado** também exige checksum (números de lote param de pontuar),
+    `INSERT … password` **multi-linha** é detectado, sites estáticos não são
+    mais penalizados por healthcheck/rate-limit, DSR só pontua quando há
+    persistência de dados, comentários em bloco/HTML/SQL/YAML nunca satisfazem
+    heurística, e inputs com semântica própria (`hidden`/`submit`) não geram
+    falso positivo de acessibilidade.
+
 !!! tip "Como ler o score"
     O `audit` dá uma nota de **0 a 100**. A meta de lançamento é **≥ 70 e zero
     findings críticos** — é o que o CI do `init` exige para aprovar PRs.
@@ -111,9 +125,17 @@ init (fundação) → codar com regras ativas → pack (contexto sem segredos)
 | Antes de lançar | `audit --report` completo |
 | Continuamente | Dependabot (gerado pelo `doctor --fix`) |
 
+!!! info "CI pinado de ponta a ponta"
+    No `security.yml` que o `init` instala no seu projeto, todas as actions de
+    terceiros são pinadas por **SHA completo** (verificadas contra as tags na
+    GitHub API) e o próprio VibeHarness roda na **versão que gerou o arquivo**
+    — nunca `latest`. Um pacote comprometido no npm não vira execução no seu CI.
+
 !!! quote "Constituição do projeto"
-    Toda instalação do `init` gera `.vibe/CONSTITUTION.md` — as leis
-    inegociáveis que a sua IA é obrigada a seguir. Leia uma vez; o resto é automático.
+    Toda instalação do `init` gera `.vibe/CONSTITUTION.md` — as **7 leis**
+    inegociáveis que a sua IA é obrigada a seguir (segurança, segredos fora do
+    código, validação de entrada, migrations, testes críticos, higiene de
+    dependências e acessibilidade WCAG 2.1 AA). Leia uma vez; o resto é automático.
 
 ---
 

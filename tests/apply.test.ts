@@ -85,6 +85,21 @@ describe('buildApplyPlan', () => {
     expect(categories).not.toContain('payments');
   });
 
+  it('plans the linting PAIR — ESLint (linter) plus Prettier (formatter) (v0.8.3)', async () => {
+    const catalog = await loadCatalog();
+    const plan = buildApplyPlan(catalog!, {
+      projectType: 'fullstack-web',
+      hasAuth: true,
+      hasPayments: false,
+      installedDeps: new Set(),
+    });
+    const linting = plan.items.filter((i) => i.category === 'linting');
+    // Star-order alone would ship Prettier only — the linter must be there too.
+    expect(linting.map((i) => i.entry.repo)).toEqual(['eslint/eslint', 'prettier/prettier']);
+    expect(APPLY_RECIPES['eslint/eslint'].files?.some((f) => f.path === 'eslint.config.mjs')).toBe(true);
+    expect(APPLY_RECIPES['prettier/prettier'].files?.some((f) => f.path === '.prettierrc.json')).toBe(true);
+  });
+
   it('skips categories whose packages are already installed', async () => {
     const catalog = await loadCatalog();
     const plan = buildApplyPlan(catalog!, {

@@ -22,31 +22,33 @@ import { EXCLUDED_DIRS } from './security.js';
 
 /* ─── Patterns ─────────────────────────────────────────────────────────────── */
 
-/** Detects PII being printed/logged without masking — literal PII values. */
+/** Detects PII being printed/logged without masking — literal PII values.
+ * The argument window runs to end-of-line (`[^\n]*`): a `)` from an earlier
+ * helper call (`console.log(getUser(), 'a@b.co')`) used to blind every
+ * pattern at the first closing paren. Formatted CPFs moved to a dedicated
+ * checksum-validated loop (scanFormattedCpfInLogs). */
 const PII_LOG_PATTERNS: [RegExp, string][] = [
-  // CPF with separators (###.###.###-##) — high-confidence formatting.
-  // Bare 11-digit runs are checked separately with checksum validation so
-  // numeric IDs and timestamps are not flagged (see scanBareCpfInLogs).
-  [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*\b(\d{3}[.\s]\d{3}[.\s]\d{3}[-\s]\d{2})\b/,
-    'CPF number in log statement',
-  ],
   // E-mail in logs
   [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+    /console\.(log|error|warn|info|debug)\s*\([^\n]*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
     'E-mail address in log statement',
   ],
   // Phone number in logs (BR format) — requires an explicit marker (+55) or
   // at least one separator, so contiguous digit runs (Unix timestamps,
   // order IDs) are never flagged.
   [
-    /console\.(log|error|warn|info|debug)\s*\([^)]*(?:\+55[\s-]?\(?\d{2}\)?[\s-]?\d{4,5}[-\s]?\d{4}|\(\d{2}\)[\s-]?\d{4,5}[-\s]\d{4}|\b\d{2}[\s-]\d{4,5}[\s-]\d{4}\b)/,
+    /console\.(log|error|warn|info|debug)\s*\([^\n]*(?:\+55[\s-]?\(?\d{2}\)?[\s-]?\d{4,5}[-\s]?\d{4}|\(\d{2}\)[\s-]?\d{4,5}[-\s]\d{4}|\b\d{2}[\s-]\d{4,5}[\s-]\d{4}\b)/,
     'Phone number in log statement',
   ],
 ];
 
+/** Formatted CPF candidates inside log statements (###.###.###-## — the
+ * separators may also be spaces). Checksum-validated before flagging. */
+const FORMATTED_CPF_LOG_RE =
+  /console\.(log|error|warn|info|debug)\s*\([^\n]*\b(\d{3}[.\s]\d{3}[.\s]\d{3}[-\s]\d{2})\b/g;
+
 /** Bare 11-digit candidate CPFs inside log statements. */
-const BARE_CPF_LOG_RE = /console\.(log|error|warn|info|debug)\s*\([^)]*\b(\d{11})\b/g;
+const BARE_CPF_LOG_RE = /console\.(log|error|warn|info|debug)\s*\([^\n]*\b(\d{11})\b/g;
 
 /** CPF check-digit validation (Receita Federal algorithm). Rejects sequences
  * like 111.111.111-11 and every non-CPF 11-digit number (IDs, timestamps). */
@@ -67,8 +69,8 @@ export function isValidCpf(digits: string): boolean {
  * interpolated with data or logged as a value is.
  */
 const SENSITIVE_FIELD_LOG_RE =
-  /console\.(log|error|warn|info|debug)\s*\(([^)\n]*)\b(password|senha|token|secret|cpf|rg)\b/gi;
-const SENSITIVE_FIELD_PRINT_RE = /print\s*\(([^)\n]*)\b(password|senha|cpf|email|token|secret)\b/gi;
+  /console\.(log|error|warn|info|debug)\s*\(([^\n]*)\b(password|senha|token|secret|cpf|rg)\b/gi;
+const SENSITIVE_FIELD_PRINT_RE = /print\s*\(([^\n]*)\b(password|senha|cpf|email|token|secret)\b/gi;
 
 /**
  * Returns the quote character surrounding `index` in `src` ('"', "'", '`'),
@@ -113,12 +115,21 @@ function triageSensitiveLog(callLine: string, kwIndex: number): 'dynamic' | 'sta
 }
 
 /**
- * Conservative line-comment stripper: removes `// …` sequences that are not
- * part of a URL (`://`) so commented-out code and TODO notes never satisfy
- * detection heuristics. Not a parser — good enough for heuristic scanning.
+ * Conservative comment stripper: removes JS block comments (slash-asterisk),
+ * HTML comments and `// …` line comments (unless part of a URL, `://`) so
+ * commented-out code, JSDoc examples and TODO notes never satisfy detection
+ * heuristics. Not a parser — good enough for heuristic scanning.
  */
 export function stripLineComments(src: string): string {
-  return src.replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
+}
+
+/** SQL `--` line-comment stripper for migration/policy files. */
+export function stripSqlComments(src: string): string {
+  return src.replace(/(^|[^:'"`])--[^\n]*/g, '$1');
 }
 
 /** Insecure password hashing — labels are context-neutral: md5/sha1 also have
@@ -137,14 +148,19 @@ const CONSENT_MARKERS = [
   'cookieconsent',
   'cookie_consent',
   'consentimento',
-  'lgpd',
-  'gdpr',
   // NOTE: 'gtag' is NOT a consent marker — Google Analytics loads without
   // any consent mechanism. Only real consent platforms/patterns count.
+  // NOTE: bare 'lgpd'/'gdpr' words are NOT markers either — prose like
+  // "estamos em conformidade com a LGPD" satisfies no banner; they only
+  // count paired with a consent-mechanism word (CONSENT_PROSE_RE).
   'CookieYes',
   'OneTrust',
   'Cookiebot',
 ];
+
+/** LGPD/GDPR words count as consent evidence only beside a mechanism word. */
+const CONSENT_PROSE_RE =
+  /(lgpd|gdpr)[\w\s.,-]{0,40}(banner|consentimento|consent|modal|notice|aceite|accept|opt[\s-]?in)|(banner|consentimento|consent|modal|notice|aceite|accept|opt[\s-]?in)[\w\s.,-]{0,40}(lgpd|gdpr)/i;
 
 const PRIVACY_ROUTES = [
   '/politica-de-privacidade',
@@ -172,9 +188,11 @@ const DSR_DELETE_PATTERNS = [
   /\b\w+\.(delete|del)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)\b/i,
   /route\s*\(\s*['"`]delete['"`]\s*,\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
   /@Delete\s*\(\s*['"`][^'"]*\/(user|account|me|usuario|conta)/i,
-  // fetch('/api/user', { method: 'DELETE' }) and variants
-  /(fetch|axios|ky|got)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)[^'"`]*['"`][\s\S]{0,120}?method\s*:\s*['"`]delete['"`]/i,
-  /method\s*:\s*['"`]delete['"`][\s\S]{0,120}?['"`]\/(\w+\/)*(user|account|me|usuario|conta)\b/i,
+  // fetch('/api/user', { method: 'DELETE' }) and variants — v0.8.3: the
+  // window is bounded tighter so an unrelated DELETE elsewhere in the file
+  // plus any `/user` string within reach no longer fakes deletion evidence.
+  /(fetch|axios|ky|got)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)[^'"`]*['"`][\s\S]{0,60}?method\s*:\s*['"`]delete['"`]/i,
+  /method\s*:\s*['"`]delete['"`][\s\S]{0,60}?['"`]\/(\w+\/)*(user|account|me|usuario|conta)\b/i,
   // Next.js App Router handler in a user/account route file — detected by
   // file path + `export function DELETE` in scanLGPD itself.
   /\.rpc\(\s*['"`](delete[_-]?(own[_-]?)?(account|user|conta|usuario)|(account|user|conta|usuario)[_-]?delete)['"`]/i,
@@ -182,15 +200,72 @@ const DSR_DELETE_PATTERNS = [
 ];
 
 const DSR_EXPORT_PATTERNS = [
-  /export.*\/(user|account|me|usuario)\/(data|dados|export|exportar)/i,
+  // Bounded window: `export` as an ES keyword plus `.*` used to span the
+  // whole file, so any `/user/data` nav link satisfied portability.
+  /export[\s\S]{0,80}?\/(user|account|me|usuario|conta)\/(data|dados|export|exportar)/i,
   // Path-first forms: app.get('/api/user/export'), GET /user/data…
   /(get|route)\s*\(\s*['"`][^'"`]*\/(user|account|me|usuario|conta)\/(data|dados|export|exportar)/i,
-  /download.*\/(user|account|me|usuario)\/(data|dados)/i,
+  /download[\s\S]{0,80}?\/(user|account|me|usuario|conta)\/(data|dados)/i,
   /portabilidade/i,
   /'data.?export'|"data.?export"|`data.?export`/i,
   /\.rpc\(\s*['"`](export[_-]?(own[_-]?)?(user[_-]?)?data|user[_-]?data[_-]?export|exportar[_-]?dados)['"`]/i,
   /create\s+(?:or\s+replace\s+)?function\s+(export[_-]?(own[_-]?)?(user[_-]?)?data|user[_-]?data[_-]?export)\s*\(/i,
 ];
+
+/** Next.js App Router resource-route detection — the resource name may be
+ * followed by dynamic segments (`app/api/user/[id]/route.ts`). */
+const APP_ROUTER_RESOURCE_ROUTE_RE =
+  /(^|\/)(user|account|me|usuario|conta)s?(\/[^/]*)*\/route\.(ts|js|tsx|jsx)$/;
+/** Both handler forms: `export function DELETE` and `export const DELETE =`. */
+const APP_ROUTER_DELETE_HANDLER_RE =
+  /export\s+(?:async\s+)?(?:function\s+DELETE|const\s+DELETE\s*=)/;
+
+/**
+ * Persistence detection — DSR obligations (erasure/portability) only exist
+ * when user data is actually stored. Checks common Node/Python persistence
+ * dependencies plus migration/schema artefacts on disk.
+ */
+export function hasPersistence(root: string = projectRoot()): boolean {
+  const PERSISTENCE_DEPS = [
+    '@supabase/supabase-js',
+    'prisma',
+    '@prisma/client',
+    'drizzle-orm',
+    'typeorm',
+    'sequelize',
+    'kysely',
+    'knex',
+    'mongoose',
+    'mongodb',
+    'mysql',
+    'mysql2',
+    'pg',
+    'sqlite3',
+    'better-sqlite3',
+    'firebase-admin',
+    'firebase',
+    '@aws-sdk/client-dynamodb',
+  ];
+  try {
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    if (PERSISTENCE_DEPS.some((d) => deps[d])) return true;
+  } catch {
+    /* no package.json — fall through to file checks */
+  }
+  const artefacts = [
+    join(root, 'prisma', 'schema.prisma'),
+    join(root, 'drizzle.config.ts'),
+    join(root, 'drizzle.config.js'),
+    join(root, 'migrations'),
+    join(root, 'src', 'migrations'),
+    join(root, 'db', 'migrations'),
+  ];
+  return artefacts.some((p) => existsSync(p));
+}
 
 const RLS_CHECK_PATTERNS = [
   /enable row level security/i,
@@ -207,12 +282,14 @@ const PLAINTEXT_PASSWORD_PATTERNS: [RegExp, string][] = [
 
 /**
  * INSERT statements that mention a password column. The hashing guard is
- * checked against the whole statement line here (a trailing negative
+ * checked against the whole matched statement (a trailing negative
  * lookahead after `.*` is vacuous — it always succeeds at end-of-line, so
  * the old inline guard never excluded anything). Supports `$1` and `?`
- * placeholders alike.
+ * placeholders alike. v0.8.3: the bounded `[\s\S]` windows also match
+ * multi-line statements (template literals — the common style for raw SQL);
+ * the pre-0.8.3 `[^;\n]*` form made them completely invisible.
  */
-const INSERT_PASSWORD_RE = /INSERT\s+INTO[^;\n]*password[^;\n]*VALUES/gi;
+const INSERT_PASSWORD_RE = /INSERT\s+INTO[\s\S]{0,400}?password[\s\S]{0,400}?VALUES/gi;
 const HASHING_GUARD_RE = /hash|bcrypt|argon|crypt|pbkdf2?|scrypt/i;
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
@@ -235,7 +312,7 @@ async function getSourceFiles(
  * Deliberately excludes generic tokens like `req.body` / `req, res`, which
  * appear in documentation and rule templates without any real route existing.
  */
-const API_SURFACE_PATTERN =
+export const API_SURFACE_PATTERN =
   /app\.(get|post|put|patch|delete|use)\s*\(\s*['"`/]|router\.(get|post|put|patch|delete)\s*\(\s*['"`/]|@(Controller|Get|Post|Put|Delete|Route)\b|fastify\.(get|post|put|delete)\s*\(|@(app|ctr)\.(Get|Post|Put|Delete)/;
 
 /**
@@ -345,6 +422,23 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
         break; // one finding per file
       }
     }
+    // Formatted CPFs (###.###.###-##, space-grouped included) also require a
+    // valid checksum — quantities/lot numbers like "100 200 300 05" share the
+    // shape and used to be flagged on formatting alone.
+    FORMATTED_CPF_LOG_RE.lastIndex = 0;
+    let fm: RegExpExecArray | null;
+    while ((fm = FORMATTED_CPF_LOG_RE.exec(content)) !== null) {
+      if (isValidCpf(fm[2].replace(/\D/g, ''))) {
+        findings.push({
+          severity: 'high',
+          category: 'lgpd-pii-logs',
+          message: 'CPF number in log statement',
+          file: file.replace(projectRoot() + '/', ''),
+          fix: 'Use a logging library with field masking (e.g., pino redact) and never log CPF values. Log opaque identifiers instead.',
+        });
+        break; // one finding per file (bare loop may have fired already)
+      }
+    }
   }
 
   /* 1b. Sensitive field NAMES in logs — triaged (v0.8).
@@ -414,7 +508,10 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     } catch {
       continue;
     }
-    if (CONSENT_MARKERS.some((m) => content.toLowerCase().includes(m.toLowerCase()))) {
+    if (
+      CONSENT_MARKERS.some((m) => content.toLowerCase().includes(m.toLowerCase())) ||
+      CONSENT_PROSE_RE.test(content)
+    ) {
       hasConsent = true;
       break;
     }
@@ -477,10 +574,19 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
   }
   }
 
-  /* 4. DSR endpoints (web apps only) — HTTP routes, Supabase RPCs and SQL
-   * functions alike (v0.8: `delete_own_account()`/`export_user_data()` were
-   * false negatives when only route syntax was recognised). */
-  if (isWebApp) {
+  /* 4. DSR endpoints (web apps with persistence only) — erasure/portability
+   * obligations exist when user data is actually stored. HTTP routes,
+   * Supabase RPCs and SQL functions alike (v0.8: `delete_own_account()`/
+   * `export_user_data()` were false negatives with route syntax only). */
+  if (isWebApp && !hasPersistence(root)) {
+    findings.push({
+      severity: 'info',
+      category: 'lgpd-dsr',
+      message: 'Web surface without a detected persistence layer — DSR endpoint checks skipped',
+      fix: 'No stored user data, no erasure/portability endpoints needed yet. If the project starts persisting user data (DB dependency, prisma/drizzle config, migrations), these checks activate automatically.',
+    });
+  }
+  if (isWebApp && hasPersistence(root)) {
   let hasDeletion = false;
   let hasExport = false;
   const dsrFiles = [
@@ -501,13 +607,10 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     }
     if (!hasDeletion && DSR_DELETE_PATTERNS.some((p) => p.test(content))) hasDeletion = true;
     if (!hasExport && DSR_EXPORT_PATTERNS.some((p) => p.test(content))) hasExport = true;
-    // Next.js App Router: `export async function DELETE()` inside a route
-    // file whose path names the account resource.
-    if (
-      !hasDeletion &&
-      /(^|\/)(user|account|me|usuario|conta)[^/]*\/route\.(ts|js|tsx|jsx)$/.test(file) &&
-      /export\s+(?:async\s+)?function\s+DELETE/.test(content)
-    ) {
+    // Next.js App Router: DELETE handler (function or const form) inside a
+    // route file whose path names the account resource — dynamic segments
+    // (`app/api/user/[id]/route.ts`) included.
+    if (!hasDeletion && APP_ROUTER_RESOURCE_ROUTE_RE.test(file) && APP_ROUTER_DELETE_HANDLER_RE.test(content)) {
       hasDeletion = true;
     }
   }
@@ -558,7 +661,9 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     for (const file of sqlFiles) {
       let content: string;
       try {
-        content = await readFile(file, 'utf8');
+        // SQL `--` comments stripped: a commented-out `CREATE POLICY` in a
+        // migration used to fake RLS evidence and suppress this finding.
+        content = stripSqlComments(stripLineComments(await readFile(file, 'utf8')));
       } catch {
         continue;
       }
@@ -605,9 +710,9 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     }
   }
 
-  /* 6b. INSERT ... password ... VALUES — the hashing guard is evaluated per
-   * statement line (the old inline lookahead was vacuous and never excluded
-   * hashed inserts). Both $1 and ? placeholders are accepted. */
+  /* 6b. INSERT ... password ... VALUES — the hashing guard is evaluated over
+   * the whole matched statement (both single-line and multi-line template
+   * literals). Both $1 and ? placeholders are accepted. */
   for (const file of sourceFiles) {
     let content: string;
     try {
@@ -618,11 +723,17 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
     INSERT_PASSWORD_RE.lastIndex = 0;
     let im: RegExpExecArray | null;
     while ((im = INSERT_PASSWORD_RE.exec(content)) !== null) {
-      const lineStart = content.lastIndexOf('\n', im.index) + 1;
-      let lineEnd = content.indexOf('\n', im.index);
+      // Guard window: the matched statement plus the rest of its line (where
+      // `bcrypt.hash(...)` lands when passed in the parameter array after
+      // VALUES) and the line preceding the statement start (the common
+      // `const hash = …;` + multi-line template literal pattern).
+      const statementLineStart = content.lastIndexOf('\n', im.index - 1) + 1;
+      const prevLineStart =
+        statementLineStart > 0 ? content.lastIndexOf('\n', statementLineStart - 2) + 1 : 0;
+      let lineEnd = content.indexOf('\n', im.index + im[0].length);
       if (lineEnd === -1) lineEnd = content.length;
-      const line = content.slice(lineStart, lineEnd);
-      if (HASHING_GUARD_RE.test(line)) continue; // bcrypt.hash(...) etc.
+      const guardWindow = content.slice(prevLineStart, lineEnd);
+      if (HASHING_GUARD_RE.test(guardWindow)) continue; // bcrypt.hash(...) etc.
       findings.push({
         severity: 'critical',
         category: 'lgpd-password-hashing',
