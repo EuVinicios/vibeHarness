@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibeHarness — Do prompt à produção sem o caos</title>
+  <meta name="description" content="O VibeHarness transforma vibecoding em engenharia de produção: PRD guiado por chat, stack curada em 1 comando, contexto sanitizado contra vazamento de segredos e auditoria 0–100 — tudo conectado à sua IA favorita via MCP." />
+  <meta name="keywords" content="vibecoding, AI, CLI, MCP, Cursor, Claude, Copilot, audit, segurança, desenvolvimento com IA" />
+  <link rel="canonical" href="https://euvinicios.github.io/vibeHarness/site/" />
+  <meta name="author" content="EuVinicios" />
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="VibeHarness" />
+  <meta property="og:title" content="VibeHarness — Do prompt à produção sem o caos" />
+  <meta property="og:description" content="PRD guiado por chat, stack curada, segredos sanitizados e auditoria de produção — conectado à sua IA via MCP. Instale com 1 comando." />
+  <meta property="og:url" content="https://euvinicios.github.io/vibeHarness/site/" />
+  <meta property="og:image" content="https://euvinicios.github.io/vibeHarness/site/assets/og-card.svg" />
+  <meta property="og:locale" content="pt_BR" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="VibeHarness — Do prompt à produção sem o caos" />
+  <meta name="twitter:description" content="O copiloto que organiza sua spec, sanitiza seus segredos, conecta na sua IA via MCP e audita seu código antes do deploy." />
+  <meta name="twitter:image" content="https://euvinicios.github.io/vibeHarness/site/assets/og-card.svg" />
+
+  <!-- Theme boot (anti-flash) -->
+  <script>
+    (function () {
+      var t = localStorage.getItem("vh-theme");
+      if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="site-header" id="topo">
+    <nav class="nav container" aria-label="Navegação principal">
+      <a class="brand" href="#topo" aria-label="VibeHarness — voltar ao início">
+        <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="2" y="2" width="28" height="28" rx="8" class="logo-bg" />
+          <path d="M8 10.5 12.5 21 16 13.5 19.5 21 24 10.5" class="logo-stroke" />
+        </svg>
+        <span class="brand-name">VibeHarness</span>
+        <span class="version-badge" title="Versão atual">v0.8.1</span>
+      </a>
+
+      <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Abrir menu">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </button>
+
+      <div class="nav-menu" id="nav-menu">
+        <a href="#como-funciona">Como Funciona</a>
+        <a href="#recursos">Recursos</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://euvinicios.github.io/vibeHarness/" class="nav-docs" target="_blank" rel="noopener">Documentação</a>
+        <a href="https://github.com/EuVinicios/vibeHarness" class="nav-github" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.74 1.24 1.05.73 1.54 1.9 1.1 2.35.84.07-.65.28-1.1.51-1.35-1.79-.25-3.67-.89-3.67-3.96 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.89 3.7-3.68 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          GitHub
+        </a>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Alternar tema claro/escuro">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main id="conteudo">
+
+    <!-- ===================== HERO ===================== -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="hero-eyebrow">Harness de produção para vibecoding</p>
+          <h1 id="hero-title">Do prompt à produção, <span class="accent">sem o caos</span> do Git e da arquitetura.</h1>
+          <p class="hero-sub">O copiloto que organiza sua spec, sanitiza seus segredos, conecta na sua IA favorita via MCP e audita seu código antes do deploy.</p>
+
+          <div class="terminal-card" role="group" aria-label="Comando de instalação">
+            <div class="terminal-bar">
+              <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+              <span class="terminal-title">terminal</span>
+            </div>
+            <div class="terminal-body">
+              <p class="terminal-line">
+                <span class="prompt" aria-hidden="true">$</span>
+                <code id="install-cmd">npx @vibeharness/cli install</code>
+                <button class="copy-btn" data-copy="npx @vibeharness/cli install" aria-label="Copiar comando de instalação">
+                  <svg class="icon-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <svg class="icon-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span class="copy-label">Copiar</span>
+                </button>
+              </p>
+            </div>
+          </div>
+
+          <div class="hero-actions">
+            <a class="btn btn-primary" data-copy="npx @vibeharness/cli install" href="#" role="button">
+              Instalar agora — 1 clique
+              <svg class="icon-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="https://euvinicios.github.io/vibeHarness/" target="_blank" rel="noopener">Ver Documentação Completa</a>
+          </div>
+          <p class="hero-note">Funciona com Cursor, Claude Code, Windsurf, Copilot e mais. Nada de configurar 40 arquivos.</p>
+        </div>
+
+        <!-- CLI Simulator -->
+        <div class="hero-visual">
+          <div class="sim-window" aria-label="Demonstração do fluxo do VibeHarness no terminal">
+            <div class="terminal-bar">
+              <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+              <span class="terminal-title">vibe-harness · demo</span>
+            </div>
+            <div class="sim-body" id="sim-body" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PROBLEMA VS SOLUÇÃO ===================== -->
+    <section class="section" id="problema" aria-labelledby="problema-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="problema-title">Você sabe como é construir com IA hoje</h2>
+          <p class="section-sub">O VibeHarness transforma o medo em método.</p>
+        </div>
+        <div class="vs-grid">
+          <article class="vs-card vs-problem">
+            <h3><svg class="vs-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg> Sem VibeHarness</h3>
+            <ul>
+              <li>Código espaguete gerado pela IA, sem regras de arquitetura</li>
+              <li>Segredos do <code>.env</code> vazados no GitHub por acidente</li>
+              <li>Medo de fazer merge, push ou deploy</li>
+              <li>Protótipo bonito… que nunca vira produto</li>
+            </ul>
+          </article>
+          <div class="vs-divider" aria-hidden="true"><span>vira</span></div>
+          <article class="vs-card vs-solution">
+            <h3><svg class="vs-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> Com VibeHarness</h3>
+            <ul>
+              <li>PRD e spec guiados por chat — a IA escreve, você decide</li>
+              <li>Stack curada e instalada em 1 comando, sem travar</li>
+              <li>MCP que sanitiza segredos e audita o próprio código da IA</li>
+              <li>Nota de prontidão para produção: 0 a 100, sem achismo</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== COMO FUNCIONA ===================== -->
+    <section class="section section-alt" id="como-funciona" aria-labelledby="cf-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="cf-title">O ciclo de vida, em 4 passos</h2>
+          <p class="section-sub">Cada etapa tem um comando. Cada comando tem um propósito.</p>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <span class="step-num" aria-hidden="true">1</span>
+            <h3>Conexão em 1 clique</h3>
+            <code class="step-cmd">vibe-harness install · mcp</code>
+            <p>Configura as regras do seu projeto e conecta o servidor MCP automaticamente no Claude, Cursor, Windsurf, Copilot e mais.</p>
+          </li>
+          <li class="step">
+            <span class="step-num" aria-hidden="true">2</span>
+            <h3>Antes do código</h3>
+            <code class="step-cmd">vibe-harness prd · plan</code>
+            <p>A IA gera sua especificação e monta a stack certa pra sua ideia — antes de escrever uma linha.</p>
+          </li>
+          <li class="step">
+            <span class="step-num" aria-hidden="true">3</span>
+            <h3>Durante o código</h3>
+            <code class="step-cmd">vibe-harness pack</code>
+            <p>Limpa <code>.env</code> e chaves sensíveis antes de enviar contexto para o modelo. Seus segredos nunca viram prompt.</p>
+          </li>
+          <li class="step">
+            <span class="step-num" aria-hidden="true">4</span>
+            <h3>Depois do código</h3>
+            <code class="step-cmd">vibe-harness audit · doctor</code>
+            <p>Avaliação de 0 a 100 em segurança e boas práticas, com correções sugeridas — e executadas pela própria IA.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===================== RECURSOS / ECOSSISTEMA ===================== -->
+    <section class="section" id="recursos" aria-labelledby="recursos-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="recursos-title">Feito para o seu setup</h2>
+          <p class="section-sub">Integre com a IA que você já usa — via regras nativas ou protocolo MCP.</p>
+        </div>
+
+        <div class="eco-grid" role="list">
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#b1b1b3">C</span><strong>Cursor</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#d97757">C</span><strong>Claude Code</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#00e09f">W</span><strong>Windsurf</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#0078d4">C</span><strong>VS Code Copilot</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#8b5cf6">A</span><strong>Antigravity</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#ff6f61">Q</span><strong>Qwen</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#60a5fa">O</span><strong>OpenCode</strong></div>
+          <div class="eco-card" role="listitem"><span class="eco-dot" style="--c:#5eead4">M</span><strong>MCP (qualquer cliente)</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== FAQ ===================== -->
+    <section class="section section-alt" id="faq" aria-labelledby="faq-title">
+      <div class="container container-narrow">
+        <div class="section-head">
+          <h2 id="faq-title">Perguntas descomplicadas</h2>
+          <p class="section-sub">Feito pra quem não domina Git ou terminal.</p>
+        </div>
+
+        <div class="faq">
+          <details class="faq-item" open>
+            <summary>Preciso ser especialista em Git para usar?</summary>
+            <p><strong>Não.</strong> O CLI e a IA fazem o trabalho pesado: o VibeHarness guia merges, commits e deploys passo a passo, explicando o que está acontecendo a cada comando. Se você sabe o que é um repositório, sabe usar.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Funciona com qual IA?</summary>
+            <p>Praticamente todas. Cursor, Claude Code, Windsurf, VS Code Copilot, Antigravity, Qwen e OpenCode — via arquivos de regras nativos ou protocolo MCP. Se a sua IA fala MCP, ela fala VibeHarness.</p>
+          </details>
+          <details class="faq-item">
+            <summary>O que é MCP?</summary>
+            <p><strong>Model Context Protocol</strong> é um padrão aberto que conecta sua IA a ferramentas e contexto do seu projeto. Na prática: sua IA ganha superpoderes — ela mesma roda o harness, audita o código que gerou e corrige o que estiver errado.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Meus segredos (chaves, tokens) vão pro GitHub?</summary>
+            <p>Nunca. O comando <code>pack</code> sanitiza o contexto antes de enviar ao modelo — <code>.env</code> e chaves viram placeholders. E o <code>audit</code> caça segredos acidentalmente commitados antes que causem estrago.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Quanto custa? Preciso de servidor?</summary>
+            <p>O VibeHarness é open source (MIT) e roda 100% local, na sua máquina. O único custo continua sendo a sua IA favorita — a mesma que você já paga.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CTA FINAL ===================== -->
+    <section class="section cta-final" aria-labelledby="cta-title">
+      <div class="container container-narrow cta-final-inner">
+        <h2 id="cta-title">Seu protótipo merece produção</h2>
+        <p>Um comando separa o vibecode caótico do produto auditável.</p>
+        <div class="hero-actions center">
+          <a class="btn btn-primary" data-copy="npx @vibeharness/cli install" href="#" role="button">
+            Instalar agora
+            <svg class="icon-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/EuVinicios/vibeHarness" target="_blank" rel="noopener">Ver no GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="#topo">
+          <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+            <rect x="2" y="2" width="28" height="28" rx="8" class="logo-bg" />
+            <path d="M8 10.5 12.5 21 16 13.5 19.5 21 24 10.5" class="logo-stroke" />
+          </svg>
+          <span class="brand-name">VibeHarness</span>
+        </a>
+        <p>O harness de produção para desenvolvimento assistido por IA.</p>
+      </div>
+      <nav class="footer-links" aria-label="Links do rodapé">
+        <a href="https://github.com/EuVinicios/vibeHarness" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/@vibeharness/cli" target="_blank" rel="noopener">npm · @vibeharness/cli</a>
+        <a href="https://euvinicios.github.io/vibeHarness/" target="_blank" rel="noopener">Documentação</a>
+        <a href="https://github.com/EuVinicios/vibeHarness/blob/main/LICENSE" target="_blank" rel="noopener">Licença MIT</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <p>© <span id="year">2026</span> VibeHarness — construído com a comunidade, para a comunidade. 💜</p>
+    </div>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
