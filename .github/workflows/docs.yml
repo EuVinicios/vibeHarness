@@ -10,23 +10,49 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: deploy-docs
+  build:
+    name: Build docs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        # actions/checkout@v4.4.0
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Pages
+        uses: actions/configure-pages@9833f4713f3f1f9963abb1992247b0f869801383
 
       # ubuntu-latest ships Python 3 + pip — no setup action needed.
       - name: Install mkdocs-material
         run: python3 -m pip install --upgrade pip mkdocs-material
 
       - name: Build (validation)
-        run: mkdocs build --strict
+        run: mkdocs build --strict --clean --site-url https://euvinicios.github.io/vibeHarness/docs/
 
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        with:
+          path: docs-build
+          name: docs
+
+  deploy:
+    name: Deploy docs
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}/docs/
+    steps:
       - name: Deploy to GitHub Pages
-        run: mkdocs gh-deploy --force
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
+        with:
+          artifact_name: docs

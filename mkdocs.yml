@@ -1,6 +1,7 @@
 site_name: VibeHarness
+site_dir: docs-build
 site_description: O harness de produção para desenvolvimento assistido por IA (vibecoding) — PRD, spec, stack curada, contexto sanitizado e auditoria em um único CLI.
-site_url: https://euvinicios.github.io/vibeHarness/
+site_url: https://euvinicios.github.io/vibeHarness/docs/
 repo_url: https://github.com/EuVinicios/vibeHarness
 repo_name: EuVinicios/vibeHarness
 edit_uri: edit/main/docs/
