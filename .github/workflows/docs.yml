@@ -34,7 +34,7 @@ jobs:
         run: python3 -m pip install --upgrade pip mkdocs-material
 
       - name: Build (validation)
-        run: mkdocs build --strict --clean --site-url https://euvinicios.github.io/vibeHarness/docs/
+        run: mkdocs build --strict --clean
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
