@@ -371,7 +371,9 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
       });
     }
 
-    if (EXPRESS_PATTERN.test(content) && !HELMET_PATTERN.test(content)) {
+    // Test fixtures routinely instantiate express/session without helmet/CSRF
+    // and that says nothing about the real app — triage them like other checks.
+    if (!isTestFile(rel) && EXPRESS_PATTERN.test(content) && !HELMET_PATTERN.test(content)) {
       findings.push({
         severity: 'medium',
         category: 'secrets',
@@ -381,7 +383,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
       });
     }
 
-    if (SESSION_PATTERN.test(content) && !CSRF_MARKER_PATTERN.test(content)) {
+    if (!isTestFile(rel) && SESSION_PATTERN.test(content) && !CSRF_MARKER_PATTERN.test(content)) {
       findings.push({
         severity: 'medium',
         category: 'secrets',

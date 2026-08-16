@@ -45,3 +45,34 @@ describe('agentsMdTemplate', () => {
     expect(md).not.toContain('npx vibe-harness');
   });
 });
+
+describe('untrusted projectName/stack sanitisation', () => {
+  // projectName comes from the user's package.json — attacker-controllable.
+  const malicious = 'proj`${evil}`';
+
+  it('neutralises backticks and ${} in skillMdTemplate output', () => {
+    const md = skillMdTemplate(malicious);
+    const descriptionLine = md.split('\n').find((line) => line.startsWith('description:')) ?? '';
+    expect(descriptionLine).not.toContain('`');
+    expect(descriptionLine).not.toContain('${');
+    // The raw payload must never survive into generated agent instructions.
+    expect(md).not.toContain('${');
+    expect(md).not.toContain('`${evil}`');
+  });
+
+  it('neutralises backticks and ${} in agentsMdTemplate output', () => {
+    const md = agentsMdTemplate(malicious, ['Next.js', 'stack`${x}`']);
+    const heading = md.split('\n')[0];
+    expect(heading).not.toContain('`');
+    expect(heading).not.toContain('${');
+    const stackLine = md.split('\n').find((line) => line.startsWith('- Stack:')) ?? '';
+    expect(stackLine).not.toContain('`');
+    expect(stackLine).not.toContain('${');
+    expect(md).not.toContain('${');
+  });
+
+  it('keeps normal names readable', () => {
+    expect(skillMdTemplate('my-app')).toContain('vibecoding in my-app');
+    expect(agentsMdTemplate('my-app', []).split('\n')[0]).toBe('# AGENTS.md — my-app');
+  });
+});

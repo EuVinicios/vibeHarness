@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-import { writeFile, appendFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Catalog, CatalogEntry } from '../registry/index.js';
@@ -51,6 +51,8 @@ export interface ApplyResult {
   envVarsAdded: string[];
   binariesInstalled: string[];
   skippedBinaries: string[];
+  /** CVE advisories found in the applied dependency tree (Law 6 gate). */
+  auditWarnings: string[];
 }
 
 /** Categories VibeHarness can physically apply. Frontend/backend frameworks stay recommendation-only in v1. */
@@ -86,13 +88,21 @@ export function readInstalledDeps(root: string = projectRoot()): Set<string> {
 /**
  * Recipe files must be root-level configs or live under .vibe/ — the apply
  * flow NEVER writes inside the user's src/. This guard makes that invariant
- * structural instead of relying on recipe authors.
+ * structural instead of relying on recipe authors. Backslashes are treated
+ * as separators too (Windows), so `src\index.ts` cannot sneak past.
  */
 export function isAllowedRecipePath(path: string): boolean {
-  if (path.includes('..')) return false;
-  if (path.startsWith('.vibe/')) return true;
-  return !path.includes('/');
+  const normalized = path.split('\\').join('/');
+  if (normalized.includes('..')) return false;
+  if (normalized.startsWith('.vibe/')) return true;
+  return !normalized.includes('/');
 }
+
+/** Unit testing is the apply default for the testing category — Law 5 needs
+ * unit/integration coverage of critical paths, which E2E alone cannot give.
+ * Playwright ships alongside as the complementary E2E layer. */
+const TESTING_PRIMARY_REPO = 'vitest-dev/vitest';
+const TESTING_E2E_REPO = 'microsoft/playwright';
 
 export function buildApplyPlan(catalog: Catalog, ctx: ApplyContext): ApplyPlan {
   const items: PlannedItem[] = [];
@@ -117,22 +127,31 @@ export function buildApplyPlan(catalog: Catalog, ctx: ApplyContext): ApplyPlan {
       continue;
     }
 
-    const primary = topEntries(catalog, category, 1)[0];
-    if (!primary) continue;
+    const candidates =
+      category === 'testing'
+        ? // Law 5: unit/integration coverage is the requirement — install the
+          // unit runner first, then the complementary E2E layer. Pure
+          // star-order would pick Playwright and leave Vitest unreachable.
+          [TESTING_PRIMARY_REPO, TESTING_E2E_REPO]
+            .map((repo) => (catalog.categories['testing'] ?? []).find((e) => e.repo === repo))
+            .filter((e): e is CatalogEntry => Boolean(e))
+        : topEntries(catalog, category, 1);
 
-    const recipe = APPLY_RECIPES[primary.repo];
-    if (!recipe) {
-      skipped.push({ category, entry: primary, reason: 'no apply recipe yet — recommendation only' });
-      continue;
+    for (const entry of candidates) {
+      const recipe = APPLY_RECIPES[entry.repo];
+      if (!recipe) {
+        skipped.push({ category, entry, reason: 'no apply recipe yet — recommendation only' });
+        continue;
+      }
+
+      const packages = [...(recipe.install ?? []), ...(recipe.devInstall ?? [])];
+      if (packages.length > 0 && packages.every((p) => ctx.installedDeps.has(p))) {
+        skipped.push({ category, entry, reason: 'already installed' });
+        continue;
+      }
+
+      items.push({ category, entry, recipe });
     }
-
-    const packages = [...(recipe.install ?? []), ...(recipe.devInstall ?? [])];
-    if (packages.length > 0 && packages.every((p) => ctx.installedDeps.has(p))) {
-      skipped.push({ category, entry: primary, reason: 'already installed' });
-      continue;
-    }
-
-    items.push({ category, entry: primary, recipe });
   }
 
   return { items, skipped };
@@ -213,6 +232,34 @@ async function installPackages(
   }
 }
 
+const DEPS_AUDIT_ARGS: Record<PackageManager, string[]> = {
+  npm: ['audit', '--audit-level=high'],
+  pnpm: ['audit', '--audit-level=high'],
+  yarn: ['npm', 'audit', '--json'],
+  bun: ['audit'],
+};
+
+/**
+ * Constitution Law 6: every new dependency needs a CVE check. Apply installs
+ * packages into the user's tree, so it audits the result immediately and
+ * surfaces advisories instead of shipping them silently. Non-blocking: the
+ * user decides how to act on advisories.
+ */
+async function auditInstalledTree(pm: PackageManager, root: string, result: ApplyResult): Promise<void> {
+  const args = DEPS_AUDIT_ARGS[pm];
+  try {
+    await execFileAsync(pm, args, { cwd: root, maxBuffer: 10 * 1024 * 1024 });
+    console.log(chalk.green(`  ✔  ${pm} audit clean — no high/critical CVEs in the applied tree`));
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') return; // package manager vanished — installs already reported
+    result.auditWarnings.push(
+      `${pm} audit reported vulnerabilities in the applied dependency tree — run \`${pm} ${args.join(' ')}\` and review before shipping (Constitution Law 6).`
+    );
+    console.log(chalk.yellow(`  ⚠  ${pm} audit found advisories — review before shipping.`));
+  }
+}
+
 export interface ExecuteOptions {
   yes?: boolean;
   root?: string;
@@ -228,6 +275,7 @@ export async function executeApplyPlan(plan: ApplyPlan, opts: ExecuteOptions): P
     envVarsAdded: [],
     binariesInstalled: [],
     skippedBinaries: [],
+    auditWarnings: [],
   };
 
   const hasPackageJson = existsSync(join(root, 'package.json'));
@@ -266,6 +314,9 @@ export async function executeApplyPlan(plan: ApplyPlan, opts: ExecuteOptions): P
       ;
     } else {
       await installPackages(root, pm, prod, dev, result);
+      if (result.installedPackages.length > 0) {
+        await auditInstalledTree(pm, root, result);
+      }
     }
   }
 
@@ -330,9 +381,14 @@ function commandExistsSync(cmd: string): boolean {
   }
 }
 
-/** Append an "## Applied" audit trail to the generated STACK.md. */
+const TRAIL_MARKER = '## Applied by VibeHarness';
+/** Repeated applies must not grow STACK.md without bound. */
+const MAX_TRAIL_ENTRIES = 5;
+
+/** Record an "## Applied" audit trail in the generated STACK.md, keeping at
+ * most MAX_TRAIL_ENTRIES entries (oldest dropped). */
 export async function appendApplyTrail(stackPath: string, result: ApplyResult): Promise<void> {
-  const lines: string[] = ['', '---', '', '## Applied by VibeHarness', ''];
+  const lines: string[] = ['', '---', '', TRAIL_MARKER, ''];
   const date = new Date().toISOString().split('T')[0];
   lines.push(`_${date} — \`plan --apply\` audit trail._`, '');
   if (result.installedPackages.length) lines.push(`- **Installed:** ${result.installedPackages.join(', ')}`);
@@ -343,6 +399,17 @@ export async function appendApplyTrail(stackPath: string, result: ApplyResult): 
   if (result.failedInstalls.length) {
     lines.push(`- **Failed installs:** ${result.failedInstalls.map((f) => f.command).join('; ')} — re-run manually.`);
   }
+  if (result.auditWarnings?.length) {
+    lines.push(`- **CVE advisories:** ${result.auditWarnings.length} — review \`${TRAIL_MARKER}\` warnings above`);
+  }
   lines.push('');
-  await appendFile(stackPath, lines.join('\n'), 'utf8');
+
+  const existing = (await readFileSafe(stackPath)) ?? '';
+  const [head, ...blocks] = existing.split(TRAIL_MARKER);
+  const kept = blocks
+    .slice(-(MAX_TRAIL_ENTRIES - 1))
+    .map((block) => TRAIL_MARKER + block)
+    .join('');
+  const base = (head + kept).replace(/\s+$/, '');
+  await writeFile(stackPath, `${base}\n${lines.join('\n')}`, 'utf8');
 }

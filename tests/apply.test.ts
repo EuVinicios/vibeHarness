@@ -38,6 +38,12 @@ describe('recipe path invariant (never touch src/)', () => {
     expect(isAllowedRecipePath('.vibe/../src/x.ts')).toBe(false);
   });
 
+  it('treats backslash separators like slashes (Windows parity)', () => {
+    expect(isAllowedRecipePath('src\\index.ts')).toBe(false);
+    expect(isAllowedRecipePath('.vibe\\starters\\x.ts')).toBe(true);
+    expect(isAllowedRecipePath('.vibe\\..\\src\\x.ts')).toBe(false);
+  });
+
   it('every shipped recipe file honours the invariant', () => {
     for (const [repo, recipe] of Object.entries(APPLY_RECIPES)) {
       for (const file of recipe.files ?? []) {
@@ -244,5 +250,55 @@ describe('detectResolvedCapabilities (v0.8)', () => {
     expect(reasons).toContain('deploy:already resolved by Vercel (vercel.json)');
     expect(plan.items.map((i) => i.category)).not.toContain('auth');
     expect(plan.items.map((i) => i.category)).not.toContain('deploy');
+  });
+});
+
+describe('apply v0.8.2 — testing defaults & trail cap', () => {
+  it('plans Vitest (unit) FIRST and Playwright (E2E) as complementary for testing', async () => {
+    const catalog = await loadCatalog();
+    const plan = buildApplyPlan(catalog!, {
+      projectType: 'fullstack-web',
+      hasAuth: false,
+      hasPayments: false,
+      installedDeps: new Set<string>(),
+    });
+    const testing = plan.items.filter((i) => i.category === 'testing');
+    expect(testing.map((t) => t.entry.repo)).toEqual(['vitest-dev/vitest', 'microsoft/playwright']);
+  });
+
+  it('skips the E2E layer when @playwright/test is already installed', async () => {
+    const catalog = await loadCatalog();
+    const plan = buildApplyPlan(catalog!, {
+      projectType: 'fullstack-web',
+      hasAuth: false,
+      hasPayments: false,
+      installedDeps: new Set(['@playwright/test']),
+    });
+    const testing = plan.items.filter((i) => i.category === 'testing');
+    expect(testing.map((t) => t.entry.repo)).toEqual(['vitest-dev/vitest']);
+    expect(plan.skipped.some((s) => s.category === 'testing' && s.reason === 'already installed')).toBe(true);
+  });
+
+  it('caps the STACK.md audit trail at 5 entries', async () => {
+    const root = makeTmp();
+    try {
+      const stackPath = join(root, 'STACK.md');
+      writeFileSync(stackPath, '# Stack\n');
+      const result: ApplyResult = {
+        installedPackages: ['zod'],
+        failedInstalls: [],
+        filesWritten: [],
+        envVarsAdded: [],
+        binariesInstalled: [],
+        skippedBinaries: [],
+        auditWarnings: [],
+      };
+      for (let i = 0; i < 7; i++) await appendApplyTrail(stackPath, result);
+      const content = readFileSync(stackPath, 'utf8');
+      const entries = content.split('## Applied by VibeHarness').length - 1;
+      expect(entries).toBe(5);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

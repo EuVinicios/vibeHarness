@@ -10,7 +10,7 @@ import {
   type ClientAdapter,
   type ClientsCatalog,
 } from '../registry/clients.js';
-import { writeFileSafe, detectStack, projectRoot, getProjectName } from '../utils/fs.js';
+import { writeFileSafe, backupFile, detectStack, projectRoot, getProjectName } from '../utils/fs.js';
 import {
   masterRulesTemplate,
   claudeMdTemplate,
@@ -38,6 +38,8 @@ export interface InstallActionOptions {
   client?: string;
   /** Headless: without client return the choice question instead of detecting. */
   requireChoice?: boolean;
+  /** Overwrite existing rules/extras files (default: skip — unified write policy). */
+  force?: boolean;
 }
 
 export interface InstallActionData {
@@ -45,6 +47,8 @@ export interface InstallActionData {
   detected: string[];
   available: { id: string; name: string; status: string }[];
   mcpConfigPaths: string[];
+  /** Per-client failures (isolated — one broken client never aborts the rest). */
+  errors: string[];
 }
 
 async function readThreatModel(): Promise<{
@@ -95,13 +99,31 @@ interface JsonRecord {
   [key: string]: unknown;
 }
 
-async function readJsonIfExists(path: string): Promise<JsonRecord | null> {
-  if (!existsSync(path)) return null;
+/** Discriminated read: an existing-but-unparseable config is a hard error —
+ * treating it as `{}` would silently destroy the user's config on merge. */
+type JsonRead =
+  | { status: 'missing' }
+  | { status: 'ok'; data: JsonRecord }
+  | { status: 'invalid'; error: string };
+
+async function readJsonObject(path: string): Promise<JsonRead> {
+  if (!existsSync(path)) return { status: 'missing' };
+  let raw: string;
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as JsonRecord;
-  } catch {
-    return null;
+    raw = await readFile(path, 'utf8');
+  } catch (err) {
+    return { status: 'invalid', error: `unreadable (${err instanceof Error ? err.message : String(err)})` };
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { status: 'invalid', error: 'not valid JSON' };
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { status: 'invalid', error: 'root is not a JSON object' };
+  }
+  return { status: 'ok', data: parsed as JsonRecord };
 }
 
 /** True when the current project is the vibe-harness package itself. */
@@ -114,14 +136,34 @@ async function isSelfPackage(packageName: string): Promise<boolean> {
   }
 }
 
-/** Merge the vibe-harness server into the client's MCP config without clobbering existing servers. */
+/** Merge the vibe-harness server into the client's MCP config without
+ * clobbering existing servers. Fails loud (never writes) when the existing
+ * config is unparseable or not an object — and backs up the original first. */
 async function mergeMcpConfig(
   catalog: ClientsCatalog,
   client: ClientAdapter,
   selfRepo: boolean
-): Promise<{ path: string; created: boolean; merged: boolean; selfRepo: boolean }> {
-  const target = resolveTargetPath(client.mcp.path);
-  const existing = (await readJsonIfExists(target)) ?? {};
+): Promise<{ path: string; created: boolean; merged: boolean; selfRepo: boolean; backup?: string }> {
+  // If the primary path is absent but the client already keeps its config in
+  // an alternative file (e.g. opencode.jsonc), merge there instead of
+  // creating a shadowing file the client may ignore.
+  let targetPath = client.mcp.path;
+  if (!existsSync(resolveTargetPath(targetPath))) {
+    for (const alt of client.mcp.alternativePaths ?? []) {
+      if (existsSync(resolveTargetPath(alt))) {
+        targetPath = alt;
+        break;
+      }
+    }
+  }
+  const target = resolveTargetPath(targetPath);
+  const read = await readJsonObject(target);
+  if (read.status === 'invalid') {
+    throw new Error(
+      `${client.name}: MCP config ${targetPath} is ${read.error} — fix or remove it, then re-run install (nothing was written)`
+    );
+  }
+  const existing = read.status === 'ok' ? read.data : {};
 
   // Inside the package's own repo `npx -y @vibeharness/cli mcp` exits 127 —
   // npm exec resolves the package name against the local project, whose bin
@@ -154,9 +196,10 @@ async function mergeMcpConfig(
       throw new Error(`unknown MCP config format: ${client.mcp.format}`);
   }
 
-  const existedBefore = existsSync(target);
+  const existedBefore = read.status === 'ok';
+  const backup = existedBefore ? (await backupFile(target)) ?? undefined : undefined;
   await writeFileSafe(target, JSON.stringify(root, null, 2) + '\n', { overwrite: true, quiet: true });
-  return { path: client.mcp.path, created: !existedBefore, merged: existedBefore, selfRepo };
+  return { path: targetPath, created: !existedBefore, merged: existedBefore, selfRepo, backup };
 }
 
 async function buildRulesContent(client: ClientAdapter): Promise<string> {
@@ -196,22 +239,25 @@ async function installOne(
   client: ClientAdapter,
   outputs: string[],
   notes: string[],
-  selfRepo: boolean
+  selfRepo: boolean,
+  force: boolean
 ): Promise<void> {
   const rulesContent = await buildRulesContent(client);
-  if (
-    await writeFileSafe(resolveTargetPath(client.rules.path), rulesContent, {
-      overwrite: true,
-      quiet: true,
-    })
-  ) {
+  const rulesWritten = await writeFileSafe(resolveTargetPath(client.rules.path), rulesContent, {
+    overwrite: force,
+    quiet: true,
+  });
+  if (rulesWritten) {
     outputs.push(client.rules.path);
+  } else {
+    notes.push(`${client.name}: ${client.rules.path} kept unchanged (exists or symlink — use force to overwrite)`);
   }
 
   const mcp = await mergeMcpConfig(catalog, client, selfRepo);
   outputs.push(mcp.path);
   notes.push(
-    `${client.name}: MCP ${mcp.created ? 'config created' : 'merged'} (${mcp.path})`
+    `${client.name}: MCP ${mcp.created ? 'config created' : 'merged'} (${mcp.path})` +
+      (mcp.backup ? ` — original backed up as ${mcp.backup.split(/[\\/]/).pop()}` : '')
   );
   if (mcp.selfRepo) {
     notes.push(
@@ -222,13 +268,17 @@ async function installOne(
   for (const extra of client.extras) {
     if (extra.template === 'skill') {
       const projectName = await getProjectName();
-      if (await writeFileSafe(resolveTargetPath(extra.path), skillMdTemplate(projectName), { overwrite: true, quiet: true })) {
+      const written = await writeFileSafe(resolveTargetPath(extra.path), skillMdTemplate(projectName), { overwrite: force, quiet: true });
+      if (written) {
         outputs.push(extra.path);
+      } else {
+        notes.push(`${client.name}: ${extra.path} kept unchanged (exists or symlink — use force to overwrite)`);
       }
     } else if (extra.template === 'command' && extra.foreach) {
       for (const cmd of extra.foreach) {
         const path = extra.path.replace('{command}', cmd);
-        if (await writeFileSafe(resolveTargetPath(path), slashCommandTemplate(cmd as never), { overwrite: true, quiet: true })) {
+        const written = await writeFileSafe(resolveTargetPath(path), slashCommandTemplate(cmd as never), { overwrite: force, quiet: true });
+        if (written) {
           outputs.push(path);
         }
       }
@@ -287,10 +337,11 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
       ok: false,
       action: 'install',
       summary: 'Could not load registry/clients.json — is the package installed correctly?',
-      data: { installed: [], detected: [], available: [], mcpConfigPaths: [] },
+      data: { installed: [], detected: [], available: [], mcpConfigPaths: [], errors: [] },
     };
   }
 
+  const force = opts.force === true;
   const available = availableList(catalog);
   const detected = await detectClients(catalog);
   const detectedIds = detected.map((d) => d.id);
@@ -320,7 +371,7 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
         ok: false,
         action: 'install',
         summary: `Unknown client(s): ${unknown.join(', ')}. Available: ${available.map((a) => a.id).join(', ')} (or "all").`,
-        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
+        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [], errors: [] },
       };
     }
     if (targets.length === 0) {
@@ -328,27 +379,39 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
         ok: false,
         action: 'install',
         summary: 'No client selected.',
-        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
+        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [], errors: [] },
       };
     }
 
     const outputs: string[] = [];
     const notes: string[] = [];
+    const installedIds: string[] = [];
+    const errors: string[] = [];
+    // Isolated per client: one broken config never aborts the remaining installs.
     for (const target of targets) {
-      await installOne(catalog, target, outputs, notes, selfRepo);
+      try {
+        await installOne(catalog, target, outputs, notes, selfRepo, force);
+        installedIds.push(target.id);
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
     }
     if (!selfRepo) await warmNpxCache(catalog, notes);
     notes.push('Verify after restart: the vibe-harness server should show connected (Qwen Code: /mcp).');
+    const ok = errors.length === 0;
     const names = targets.map((t) => t.name).join(', ');
     return {
-      ok: true,
+      ok,
       action: 'install',
-      summary: `${targets.length > 1 ? `${targets.length} clients` : names} configured. Restart each client, approve the MCP server, then ask it to "run vibe status".`,
+      summary: ok
+        ? `${targets.length > 1 ? `${targets.length} clients` : names} configured. Restart each client, approve the MCP server, then ask it to "run vibe status".`
+        : `${errors.length} of ${targets.length} client(s) failed: ${errors.join(' | ')}`,
       data: {
-        installed: targets.map((t) => t.id),
+        installed: installedIds,
         detected: detectedIds,
         available,
-        mcpConfigPaths: targets.map((t) => t.mcp.path),
+        mcpConfigPaths: targets.filter((t) => installedIds.includes(t.id)).map((t) => t.mcp.path),
+        errors,
       },
       outputs,
       notes,
@@ -359,7 +422,18 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
   if (detected.length === 1 && !opts.requireChoice) {
     const outputs: string[] = [];
     const notes: string[] = [];
-    await installOne(catalog, detected[0], outputs, notes, selfRepo);
+    try {
+      await installOne(catalog, detected[0], outputs, notes, selfRepo, force);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        action: 'install',
+        summary: message,
+        data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [], errors: [message] },
+        notes,
+      };
+    }
     if (!selfRepo) await warmNpxCache(catalog, notes);
     notes.push('Verify after restart: the vibe-harness server should show connected (Qwen Code: /mcp).');
     return {
@@ -371,6 +445,7 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
         detected: detectedIds,
         available,
         mcpConfigPaths: [detected[0].mcp.path],
+        errors: [],
       },
       outputs,
       notes,
@@ -391,7 +466,7 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
       ok: false,
       action: 'install',
       summary: 'Client choice required — ask the user, then call again with the chosen id(s) (comma-separated, or "all").',
-      data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
+      data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [], errors: [] },
       pendingQuestions: [question],
     };
   }
@@ -400,7 +475,7 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
     ok: false,
     action: 'install',
     summary: detected.length > 1 ? 'Multiple clients detected — choose one.' : 'No client detected — choose one.',
-    data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [] },
+    data: { installed: [], detected: detectedIds, available, mcpConfigPaths: [], errors: [] },
     pendingQuestions: [question],
   };
 }

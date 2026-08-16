@@ -1,22 +1,48 @@
 /**
  * Template for the security workflow installed into USER projects by
  * `vibe-harness init` — secret scanning (gitleaks), dependency CVE audit
- * (npm audit + osv-scanner) and the VibeHarness audit gate.
+ * (npm audit) and the VibeHarness audit gate.
  *
  * All third-party actions are pinned by full commit SHA (supply-chain
- * hardening) — bump them deliberately, never by floating tag.
+ * hardening) — bump them deliberately, never by floating tag. The SHAs below
+ * are verified against their tags (see tests/security-workflow.test.ts, which
+ * fails loud if they drift); the vibe-harness CLI itself is pinned to the
+ * version generating the file, so a compromised `latest` on npm cannot
+ * execute in user CI.
  */
 
-// actions/checkout@v4.4.0
-const CHECKOUT_SHA = '11d5960a326750d5838078e36cf38b85af677262';
-// actions/setup-node@v4.4.0
-const SETUP_NODE_SHA = '820762786026740c76f36085b0efc47a31fe5020';
-// gitleaks/gitleaks-action@v2.3.9
-const GITLEAKS_SHA = 'ff98106e4c7b2bc287b24eaf42907196329070c7';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { sanitizeForPrompt } from '../ui/report.js';
+
+// actions/checkout@v4.4.0 (verified against the GitHub API)
+export const CHECKOUT_SHA = '11d5960a326750d5838078e36cf38b85af677262';
+// actions/setup-node@v4.4.0 (verified against the GitHub API)
+export const SETUP_NODE_SHA = '49933ea5288caeca8642d1e84afbd3f7d6820020';
+// gitleaks/gitleaks-action@v2.3.9 (verified against the GitHub API)
+export const GITLEAKS_SHA = 'ff98106e4c7b2bc287b24eaf42907196329070c7';
+
+/** Version of the CLI generating the template — pins the audit step in CI. */
+function readOwnVersion(): string | null {
+  try {
+    const raw = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'),
+      'utf8'
+    );
+    const version = (JSON.parse(raw) as { version?: string }).version;
+    return typeof version === 'string' && version.length > 0 ? version : null;
+  } catch {
+    return null;
+  }
+}
 
 export function securityWorkflowTemplate(projectName: string): string {
-  return `# Security gate for ${projectName} — installed by vibe-harness.
-# Secret scanning (gitleaks) + dependency CVEs (npm audit, osv-scanner) + audit score gate.
+  const name = sanitizeForPrompt(projectName, 80).replace(/\r?\n/g, ' ');
+  const version = readOwnVersion();
+  const cliSpec = version ? `@vibeharness/cli@${version}` : '@vibeharness/cli';
+  return `# Security gate for ${name} — installed by vibe-harness.
+# Secret scanning (gitleaks) + dependency CVEs (npm audit) + audit score gate.
 # Actions are pinned by commit SHA on purpose — update them deliberately.
 name: Security
 
@@ -70,7 +96,9 @@ jobs:
         with:
           node-version: '20'
       - name: Run VibeHarness audit
-        # --yes: npx must not prompt in CI (a prompt stalls or fails the job)
-        run: npx --yes @vibeharness/cli audit --fail-under 70
+        # --yes: npx must not prompt in CI (a prompt stalls or fails the job).
+        # The package is version-pinned: a compromised npm \`latest\` must not
+        # get code execution in this pipeline.
+        run: npx --yes ${cliSpec} audit --fail-under 70
 `;
 }

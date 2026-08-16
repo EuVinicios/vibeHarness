@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
+import { loadAuditIgnores } from '../utils/audit-ignore.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 import { EXCLUDED_DIRS } from './security.js';
 
@@ -14,7 +15,7 @@ export async function scanAccessibility(): Promise<AuditSectionResult> {
 
   const uiFiles = await fg('**/*.{jsx,tsx,html,svelte,vue}', {
     cwd: projectRoot(),
-    ignore: EXCLUDED_DIRS.map((d) => `**/${d}/**`),
+    ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`), ...await loadAuditIgnores()],
     absolute: true,
     suppressErrors: true,
   });
@@ -35,7 +36,10 @@ export async function scanAccessibility(): Promise<AuditSectionResult> {
     const buttonElements = content.match(/<button[^>]*>[\s\S]*?<\/button>/gi) ?? [];
     for (const btn of buttonElements) {
       const openTag = btn.match(/<button[^>]*>/i)?.[0] ?? '';
-      const hasAttrLabel = /aria-label|aria-labelledby|title/i.test(openTag);
+      // `title` is NOT an acceptable accessible label — assistive tech support
+      // is inconsistent (WCAG 2.1). Only aria-label/aria-labelledby or visible
+      // text content count.
+      const hasAttrLabel = /aria-label|aria-labelledby/i.test(openTag);
       // Check for text content between tags without stripping HTML (avoids regex sanitization pitfalls)
       // Matches any non-whitespace, non-tag characters between > and < (i.e., text nodes)
       const hasTextContent = />[^<\s][^<]*</.test(btn);
@@ -47,9 +51,30 @@ export async function scanAccessibility(): Promise<AuditSectionResult> {
       if (!/\balt\s*=/i.test(img)) imagesWithoutAlt++;
     }
 
+    // next/image: <Image> requires alt exactly like <img>.
+    // (/<Image[^>]*>/gi cannot match <img — the fifth character must be 'e'.)
+    const nextImageMatches = content.match(/<Image[^>]*>/gi) ?? [];
+    for (const img of nextImageMatches) {
+      if (!/\balt\s*=/i.test(img)) imagesWithoutAlt++;
+    }
+
+    // Collect the ids referenced by <label for="…"> (also matches JSX
+    // htmlFor="…", since `for=` is a substring) in THIS file.
+    const labelForIds = new Set<string>();
+    const labelTags = content.match(/<label[^>]*>/gi) ?? [];
+    for (const label of labelTags) {
+      const forMatch = label.match(/for\s*=\s*["']([^"']+)["']/i);
+      if (forMatch) labelForIds.add(forMatch[1].toLowerCase());
+    }
+
     const inputMatches = content.match(/<input[^>]*>/gi) ?? [];
     for (const inp of inputMatches) {
-      if (!/aria-label|aria-labelledby|id\s*=/i.test(inp)) inputsWithoutLabel++;
+      if (/aria-label|aria-labelledby/i.test(inp)) continue;
+      // `id=` only counts as labelled when a matching <label for="id"> exists
+      // in the same file; `title` is not an acceptable label for inputs.
+      const idMatch = inp.match(/(?:^|\s)id\s*=\s*["']([^"']+)["']/i);
+      if (idMatch && labelForIds.has(idMatch[1].toLowerCase())) continue;
+      inputsWithoutLabel++;
     }
   }
 

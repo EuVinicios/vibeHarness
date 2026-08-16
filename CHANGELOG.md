@@ -5,6 +5,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-08-16 — "Auditoria integral de pré-lançamento: segurança do installer, supply chain e acurácia dos scanners"
+
+Resposta à auditoria externa de pré-lançamento (veredito CONDITIONAL GO, 9
+achados altos). Todos os achados altos e médios foram corrigidos; suíte cresceu
+de 192 para 278 testes (24 → 29 suites), lint e knip agora rodam no CI.
+
+### Fixed — installer (perda de dados do usuário)
+- **P0 — `install` sobrescrevia as regras do usuário sem opt-in.** Agora segue
+  a política unificada de escrita: skip-if-exists por padrão, `--force` no CLI
+  e parâmetro `force` no tool MCP `vibe_install` para sobrescrever.
+- **P0 — config de cliente com JSON inválido era destruída silenciosamente**
+  (`readJsonIfExists` → `{}` → overwrite, inclusive a config GLOBAL do
+  Windsurf). Agora o merge falha alto por cliente, sem escrever nada, e configs
+  válidas recebem backup `.vibe-bak` antes do merge.
+- Escrita atômica (tmp + rename) e recusa de escrita através de symlinks em
+  `writeFileSafe` (um `.mcp.json -> ~/.profile` plantado no repo não alcança
+  mais o alvo).
+- Falha em um cliente não aborta os demais (try/catch por cliente; `errors` no
+  resultado da ação).
+- opencode: se o projeto usa `opencode.jsonc`, o merge acontece nele — sem
+  criar `opencode.json` que sombrearia a config existente.
+
+### Fixed — supply chain dos artefatos gerados
+- **P0 — SHA do setup-node nos workflows apontava para commit não-release**
+  com comentário alegando v4.4.0. Repinado para o SHA real da tag
+  (`49933ea…`, verificado na GitHub API) nos workflows do repo E no template
+  `security.yml` gerado nos projetos dos usuários; teste
+  `tests/security-workflow.test.ts` trava os três SHAs contra as tags
+  verificadas (drift falha alto).
+- **P0 — CI gerado rodava `npx --yes @vibeharness/cli` sem versão.** Agora o
+  template fixa `@vibeharness/cli@<versão geradora>` — comprometimento do
+  `latest` no npm não vira execução no CI do usuário.
+- **`.mcp.json` gerado era JSON inválido** (comentários `//`) e usava
+  `npx -y` sem pin. Agora é JSON estrito, servidores pinados
+  (`server-filesystem@2026.7.10`, `server-memory@2026.7.4`) e o
+  `server-fetch` foi removido (pacote não existe mais no npm — isca de
+  typosquat).
+- `projectName`/stack (inputs do package.json e threat-model, não confiáveis)
+  sanitizados nos templates de workflow, rules e skill — sem injeção de YAML
+  via quebra de comentário.
+- Starters Drizzle/Stripe trocam assertions `!` por throw explícito; starter
+  Playwright deixa de transformar env var em comando shell.
+
+### Fixed — acurácia dos scanners
+- **LGPD**: regex de telefone exigia marcador BR/separadores (timestamps e IDs
+  param de pontuar como PII); CPF em 11 dígitos só pontua com checksum válido
+  (Receita Federal); guarda do `INSERT…password` reescrita (o lookahead
+  negativo após `.*` era vacuous e nunca excluía inserts com hash; placeholder
+  `?` agora coberto); f-strings/`.format()`/`%s` Python triados como dinâmicos;
+  código comentado não conta (logs, consentimento, páginas de privacidade);
+  `gtag` deixa de satisfazer consentimento; DSR reconhece `axios.delete`,
+  `fetch(…, { method: 'DELETE' })`, Next.js App Router (`export function
+  DELETE` em `app/**/route.ts`) e `GET /api/user/export`; MD5/SHA1 rebaixado a
+  HIGH com mensagem neutra (Gravatar/ETag são usos legítimos).
+- **Infra**: gating de superfície web espelhando o LGPD (CLIs não pontuam mais
+  0/10); health aceita sub-rotas (`/api/health`, `/health/live|ready`);
+  comentários não suprimem findings; `onError` só conta em arquivo com
+  marcador de backend; respeita `.vibe/auditignore`.
+- **Acessibilidade**: `id=` só conta como label com `<label for>` no mesmo
+  arquivo; `title` deixa de ser label aceitável; `<Image>` (next/image)
+  verificado; respeita `.vibe/auditignore`.
+- **Banco**: penalidade dupla removida (`db push` + sem migrations = 1
+  finding); detecta `drizzle-kit push` e varre workflows/Dockerfile; diretório
+  `drizzle` só conta se for diretório; TypeORM/Sequelize/Kysely/Knex cobertos.
+- **Segurança**: heurísticas Express/helmet e session/CSRF ignoram arquivos de
+  teste (fixtures não são o app real).
+
+### Changed
+- **apply**: Vitest é o primary de testing (Lei 5 pede unit/integração — a
+  ordenação por estrelas escolhia Playwright E2E) com Playwright complementar;
+  CVE check pós-instalação (`<pm> audit`, Lei 6) com advisories nas notes;
+  audit trail do STACK.md limitado a 5 entradas; guarda de path trata `\`
+  como separador (Windows).
+- **plan**: o confirm interativo acontece DEPOIS de exibir o plano real
+  (itens + skips); exit code 1 em falha também no modo interativo.
+- **doctor**: npm ausente não é mais "all up to date" (warn guiando
+  instalação); git ausente tem mensagem própria.
+- Registries (`catalog.json`, `clients.json`) validados com Zod no load,
+  incluindo recusa de paths com `..` nos adaptadores de cliente.
+- `score-cache` valida o payload de `sections` campo a campo (input de repo
+  clonado); prompt de starters do `status` sanitizado contra injection.
+- Regras de IA geradas agora cobrem as 7 leis completas: acessibilidade
+  (WCAG 2.1 AA), testes críticos (≥ 80% branch coverage) e governança de
+  dependências adicionadas ao template + checklist de PR.
+
+### Ops
+- `npm run lint` e `npm run knip` adicionados ao CI (estavam vermelhos na
+  main desde o PR #35 sem que ninguém percebesse); `site/` nos ignores.
+- Testes: 278 (29 suites) — novos: `security-workflow.test.ts`,
+  `rules.test.ts`, `accessibility.test.ts`, `infra.test.ts`,
+  `database.test.ts` + regressões em `lgpd`, `install`, `apply`.
+- Self-audit: 88/100 · MCP `vibe_status` ~95 ms (p95 ≤ 2 s) · 0 CVEs.
+
 ## [0.8.1] - 2026-08-15 — "MCP online em todo lugar + hardening de segurança"
 
 ### Fixed

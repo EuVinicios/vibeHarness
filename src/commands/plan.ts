@@ -36,7 +36,21 @@ export async function planCommand(opts: PlanOptions): Promise<void> {
   }
 
   if (opts.apply && !opts.yes) {
-    const go = await confirm('Review the plan in .vibe/STACK.md — apply it now?');
+    // Build the plan FIRST so the user reviews real content before
+    // consenting (STACK.md + item list). Then apply with the same options.
+    const preview = await planAction({ projectType, apply: false, force: opts.force });
+    if (!preview.ok && preview.pendingQuestions) {
+      console.log(chalk.yellow(`  ⚠  ${preview.summary}`));
+      return;
+    }
+    console.log('\n' + chalk.bold('📋  Apply plan:'));
+    for (const item of preview.data.planItems ?? []) {
+      console.log(`    ${item.category.padEnd(11)} ${item.name} — ${item.action}`);
+    }
+    for (const s of preview.data.skipped ?? []) {
+      console.log(chalk.dim(`    ${s.category.padEnd(11)} ${s.name ?? ''} — skipped (${s.reason})`));
+    }
+    const go = await confirm('Apply this plan now? (installs the packages above and writes configs)');
     if (!go) {
       console.log(chalk.dim('  Skipped — run again with `npx @vibeharness/cli plan --apply` when ready.\n'));
       return;
@@ -56,6 +70,7 @@ export async function planCommand(opts: PlanOptions): Promise<void> {
     console.log(chalk.yellow(`  ⚠  ${result.summary}`));
     return;
   }
+  if (!result.ok) process.exitCode = 1;
 
   console.log(chalk.green(`  ✔  ${result.summary}`));
   for (const note of result.notes ?? []) console.log(chalk.yellow(`  ⚠  ${note}`));

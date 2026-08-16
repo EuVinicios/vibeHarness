@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, lstat, rename, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import chalk from 'chalk';
@@ -15,6 +15,14 @@ export interface WriteOptions {
   quiet?: boolean;
 }
 
+/**
+ * Unified write policy: skip-if-exists by default, overwrite only with an
+ * explicit opt-in. Two safety properties:
+ * - never writes through a symlink (a repo-planted link could point anywhere,
+ *   e.g. `.mcp.json -> ~/.profile`);
+ * - atomic: content goes to a sibling temp file first, then rename — a crash
+ *   mid-write can never leave a config truncated.
+ */
 export async function writeFileSafe(
   filePath: string,
   content: string,
@@ -22,13 +30,37 @@ export async function writeFileSafe(
 ): Promise<boolean> {
   const { overwrite = false, quiet = false } = typeof options === 'boolean' ? { overwrite: options } : options;
   await ensureDir(dirname(filePath));
-  if (!overwrite && existsSync(filePath)) {
-    if (!quiet) console.log(chalk.yellow(`  ⚠  Skipped (already exists): ${filePath}`));
-    return false;
+
+  let existing;
+  try {
+    existing = await lstat(filePath);
+  } catch {
+    existing = null;
   }
-  await writeFile(filePath, content, 'utf8');
+  if (existing) {
+    if (existing.isSymbolicLink()) {
+      if (!quiet) console.log(chalk.red(`  ✖  Refused to write through symlink: ${filePath}`));
+      return false;
+    }
+    if (!overwrite) {
+      if (!quiet) console.log(chalk.yellow(`  ⚠  Skipped (already exists): ${filePath}`));
+      return false;
+    }
+  }
+
+  const tmp = `${filePath}.tmp-${process.pid}`;
+  await writeFile(tmp, content, 'utf8');
+  await rename(tmp, filePath);
   if (!quiet) console.log(chalk.green(`  ✔  Written: ${filePath}`));
   return true;
+}
+
+/** Copy a file before rewriting it — lets the user recover from a bad merge. */
+export async function backupFile(filePath: string): Promise<string | null> {
+  if (!existsSync(filePath)) return null;
+  const backupPath = `${filePath}.vibe-bak`;
+  await copyFile(filePath, backupPath);
+  return backupPath;
 }
 
 export async function readFileSafe(filePath: string): Promise<string | null> {

@@ -3,7 +3,8 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'coverage/', '.vibe/'] },
+  // site/ is a static GitHub Pages landing page with browser globals — not part of the TS build.
+  { ignores: ['dist/', 'node_modules/', 'coverage/', '.vibe/', 'site/'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

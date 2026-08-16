@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { scanLGPD } from '../src/scanners/lgpd.js';
 
@@ -147,6 +147,161 @@ describe('scanLGPD — PII log triage (v0.8)', () => {
     expect(
       result.findings.some((f) => f.category === 'lgpd-pii-logs' && f.severity === 'high')
     ).toBe(true);
+  });
+});
+
+describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
+  it('does NOT flag Unix timestamps or numeric IDs as phone numbers', async () => {
+    await writeFile(
+      join(tmpDir, 'app.ts'),
+      `console.log("started at 1723800000");\nconsole.log("order 1234567890");\nconsole.log("id 99999999999");\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.message.includes('Phone'))).toBe(false);
+    expect(result.findings.some((f) => f.message.includes('CPF'))).toBe(false);
+  });
+
+  it('still flags real BR phone formats (+55, separators, parentheses)', async () => {
+    await writeFile(
+      join(tmpDir, 'app.ts'),
+      `console.log("tel +5511912345678");\nconsole.log("tel (11) 91234-5678");\nconsole.log("tel 11 91234-5678");\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    const phones = result.findings.filter((f) => f.message.includes('Phone'));
+    expect(phones.length).toBeGreaterThan(0);
+  });
+
+  it('flags bare 11-digit numbers ONLY when the CPF checksum is valid', async () => {
+    await writeFile(join(tmpDir, 'ok.ts'), `console.log("cpf 11144477735");\n`, 'utf8');
+    const flagged = await scanLGPD();
+    expect(flagged.findings.some((f) => f.message.includes('CPF'))).toBe(true);
+
+    await writeFile(join(tmpDir, 'ok.ts'), `console.log("cpf 12345678901");\n`, 'utf8');
+    const clean = await scanLGPD();
+    expect(clean.findings.some((f) => f.message.includes('CPF'))).toBe(false);
+  });
+
+  it('does NOT flag INSERT when hashing is applied on the same statement', async () => {
+    await writeFile(
+      join(tmpDir, 'db.ts'),
+      `await db.query("INSERT INTO users (email, password) VALUES (?, ?)", [email, bcrypt.hash(pwd, 12)]);\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(
+      result.findings.some((f) => f.message.includes('plaintext password inserted'))
+    ).toBe(false);
+  });
+
+  it('flags INSERT of an unhashed password ($ and ? placeholders alike)', async () => {
+    await writeFile(
+      join(tmpDir, 'db.ts'),
+      `await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [email, pwd]);\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(
+      result.findings.some(
+        (f) => f.message.includes('plaintext password inserted') && f.severity === 'critical'
+      )
+    ).toBe(true);
+  });
+
+  it('flags Python f-string interpolation of sensitive words (dynamic)', async () => {
+    await writeFile(join(tmpDir, 'app.py'), `print(f"senha do usuario: {senha}")\n`, 'utf8');
+    const result = await scanLGPD();
+    expect(
+      result.findings.some((f) => f.category === 'lgpd-pii-logs' && f.severity === 'high')
+    ).toBe(true);
+  });
+
+  it('does NOT flag static Python print messages', async () => {
+    await writeFile(join(tmpDir, 'app.py'), `print("senha invalida")\n`, 'utf8');
+    const result = await scanLGPD();
+    const high = result.findings.filter((f) => f.category === 'lgpd-pii-logs' && f.severity === 'high');
+    expect(high).toHaveLength(0);
+  });
+
+  it('does NOT flag commented-out logging code', async () => {
+    await writeFile(join(tmpDir, 'old.ts'), `// console.log(password);\n// console.log("email a@b.co");\n`, 'utf8');
+    const result = await scanLGPD();
+    const high = result.findings.filter((f) => f.category === 'lgpd-pii-logs' && f.severity === 'high');
+    expect(high).toHaveLength(0);
+  });
+
+  it('recognises axios.delete / fastify.delete as DSR deletion evidence', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await writeFile(join(tmpDir, 'settings.ts'), `export const del = () => axios.delete('/api/user');\n`, 'utf8');
+    const result = await scanLGPD();
+    const deletionMissing = result.findings.filter(
+      (f) => f.category === 'lgpd-dsr' && f.message.includes('deletion')
+    );
+    expect(deletionMissing).toHaveLength(0);
+  });
+
+  it('recognises fetch with DELETE method as DSR deletion evidence', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await writeFile(
+      join(tmpDir, 'settings.ts'),
+      `export const del = () => fetch('/api/user', { method: 'DELETE' });\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    const deletionMissing = result.findings.filter(
+      (f) => f.category === 'lgpd-dsr' && f.message.includes('deletion')
+    );
+    expect(deletionMissing).toHaveLength(0);
+  });
+
+  it('recognises Next.js App Router DELETE handler in an account route file', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await mkdir(join(tmpDir, 'app', 'account'), { recursive: true });
+    await writeFile(
+      join(tmpDir, join('app', 'account', 'route.ts')),
+      `export async function DELETE(req: Request) { return new Response('ok'); }\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    const deletionMissing = result.findings.filter(
+      (f) => f.category === 'lgpd-dsr' && f.message.includes('deletion')
+    );
+    expect(deletionMissing).toHaveLength(0);
+  });
+
+  it('recognises GET /api/user/export (path-first) as DSR export evidence', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await writeFile(
+      join(tmpDir, 'routes.ts'),
+      `app.delete('/api/user', del);\napp.get('/api/user/export', exp);\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+  });
+
+  it('does NOT accept gtag (analytics) as cookie consent', async () => {
+    await writeFile(join(tmpDir, 'page.tsx'), 'export default function Page() { return <div/>; }\n', 'utf8');
+    await writeFile(join(tmpDir, 'analytics.tsx'), `export const G = () => <script src="gtag.js" />;\n`, 'utf8');
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-consent')).toBe(true);
+  });
+
+  it('does NOT accept a commented-out route as a privacy page', async () => {
+    await writeFile(join(tmpDir, 'server.ts'), `app.get('/api/orders', handler);\n// TODO: criar pagina /privacy depois\n`, 'utf8');
+    const result = await scanLGPD();
+    expect(
+      result.findings.some((f) => f.category === 'lgpd-pages' && f.message.includes('Privacy'))
+    ).toBe(true);
+  });
+
+  it('reports weak MD5/SHA1 as HIGH with verification guidance (not blind critical)', async () => {
+    await writeFile(join(tmpDir, 'gravatar.ts'), `const avatar = md5(email);\n`, 'utf8');
+    const result = await scanLGPD();
+    const md5 = result.findings.find((f) => f.message.includes('MD5 hash detected'));
+    expect(md5).toBeDefined();
+    expect(md5?.severity).toBe('high');
   });
 });
 

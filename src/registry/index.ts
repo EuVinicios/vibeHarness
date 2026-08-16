@@ -1,12 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-
-export interface CatalogCriteria {
-  minStars: number;
-  maxPushAgeDays: number;
-  allowedLicenses: string[];
-}
+import { z } from 'zod';
 
 /**
  * A license outside `allowedLicenses` is tolerated ONLY when the entry carries
@@ -19,31 +14,35 @@ export function isLicenseAcceptable(catalog: Catalog, entry: CatalogEntry): bool
   return typeof entry.licenseNote === 'string' && entry.licenseNote.trim().length > 0;
 }
 
-export interface CatalogEntry {
-  repo: string;
-  name: string;
-  stars: number;
-  license: string;
-  /**
-   * Maintainer-verified license for repos where the GitHub API reports
-   * NOASSERTION (e.g. monorepos with vendored license files). When present,
-   * this value wins over `license` for all curation checks and the sync
-   * never overwrites it from the API.
-   */
-  licenseOverride?: string;
-  lastPush: string;
-  lastVerified: string;
-  tags: string[];
-  notes?: string;
-  licenseNote?: string;
-}
+/** Catalog shape is validated on load: it is data shipped inside the package
+ * and drives recommendations applied to user projects — a corrupted snapshot
+ * must fail loud, not flow half-parsed into the plan. */
+const CatalogEntrySchema = z.object({
+  repo: z.string().min(1),
+  name: z.string().min(1),
+  stars: z.number().int().nonnegative(),
+  license: z.string().min(1),
+  licenseOverride: z.string().optional(),
+  licenseNote: z.string().optional(),
+  lastPush: z.string().min(1),
+  lastVerified: z.string().min(1),
+  tags: z.array(z.string()).default([]),
+  notes: z.string().optional(),
+});
 
-export interface Catalog {
-  version: number;
-  lastSync: string;
-  criteria: CatalogCriteria;
-  categories: Record<string, CatalogEntry[]>;
-}
+const CatalogSchema = z.object({
+  version: z.number(),
+  lastSync: z.string().min(1),
+  criteria: z.object({
+    minStars: z.number(),
+    maxPushAgeDays: z.number(),
+    allowedLicenses: z.array(z.string()),
+  }),
+  categories: z.record(z.string(), z.array(CatalogEntrySchema)),
+});
+
+export type CatalogEntry = z.infer<typeof CatalogEntrySchema>;
+export type Catalog = z.infer<typeof CatalogSchema>;
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const CATALOG_PATH = join(here, '..', '..', 'registry', 'catalog.json');
@@ -51,7 +50,8 @@ export const CATALOG_PATH = join(here, '..', '..', 'registry', 'catalog.json');
 export async function loadCatalog(): Promise<Catalog | null> {
   try {
     const raw = await readFile(CATALOG_PATH, 'utf8');
-    return JSON.parse(raw) as Catalog;
+    const parsed = CatalogSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }

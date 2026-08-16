@@ -6,6 +6,7 @@ import { printJson, withStderrConsole } from '../utils/headless.js';
 
 interface InstallOptions {
   client?: string;
+  force?: boolean;
   json?: boolean;
 }
 
@@ -28,15 +29,16 @@ export async function installCommand(
   let client = clientArg ?? opts.client;
   if (opts.json) {
     const result = await withStderrConsole(() =>
-      installAction({ client, requireChoice: !client })
+      installAction({ client, force: opts.force, requireChoice: !client })
     );
     printJson(result);
+    if (!result.ok) process.exitCode = 1;
     return;
   }
 
   banner('VibeHarness · INSTALL');
 
-  let first = await withStderrConsole(() => installAction({ client }));
+  let first = await withStderrConsole(() => installAction({ client, force: opts.force }));
 
   if (!first.ok && first.pendingQuestions) {
     console.log(chalk.bold(`\n🧭  ${first.summary}\n`));
@@ -48,7 +50,7 @@ export async function installCommand(
       printChoices(first.data.detected, first.data.available);
       return;
     }
-    first = await withStderrConsole(() => installAction({ client }));
+    first = await withStderrConsole(() => installAction({ client, force: opts.force }));
   }
 
   if (!first.ok && first.pendingQuestions) {

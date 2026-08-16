@@ -1,39 +1,121 @@
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 
+/** Commands that sync the schema bypassing migration history. */
+const DB_PUSH_RE = /(prisma )?db push|drizzle-kit push/i;
+
+/** SQL ORMs/query builders (package.json deps) that support versioned migrations. */
+const ORM_DEPS = ['typeorm', 'sequelize', 'kysely', 'knex'];
+
+/** True only when the path exists AND is a directory (a stray file named
+ * e.g. `drizzle` is not a migrations directory). */
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function scanDatabase(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
+  const root = projectRoot();
 
   const hasMigrations =
-    existsSync(join(projectRoot(), 'migrations')) ||
-    existsSync(join(projectRoot(), 'db', 'migrations')) ||
-    existsSync(join(projectRoot(), 'prisma', 'migrations')) ||
-    existsSync(join(projectRoot(), 'drizzle'));
+    isDirectory(join(root, 'migrations')) ||
+    isDirectory(join(root, 'db', 'migrations')) ||
+    isDirectory(join(root, 'prisma', 'migrations')) ||
+    isDirectory(join(root, 'src', 'migrations')) ||
+    isDirectory(join(root, 'drizzle'));
 
-  const hasPrisma = existsSync(join(projectRoot(), 'prisma', 'schema.prisma'));
-  const hasDrizzle = existsSync(join(projectRoot(), 'drizzle.config.ts'));
+  const hasPrisma = existsSync(join(root, 'prisma', 'schema.prisma'));
+  const hasDrizzle = existsSync(join(root, 'drizzle.config.ts'));
 
-  if (!hasMigrations && (hasPrisma || hasDrizzle)) {
+  const pkgPath = join(root, 'package.json');
+  let pkgRaw: string | null = null;
+  let allDeps: Record<string, string> = {};
+  if (existsSync(pkgPath)) {
+    pkgRaw = await readFile(pkgPath, 'utf8');
+    try {
+      const pkg = JSON.parse(pkgRaw) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      allDeps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+    } catch {
+      // invalid package.json — dependency detection unavailable
+    }
+  }
+
+  const ormDepsFound = ORM_DEPS.filter((dep) => dep in allDeps);
+  const hasOrm = hasPrisma || hasDrizzle || ormDepsFound.length > 0;
+
+  /* `db push` detection — package.json scripts, CI workflows and Dockerfiles. */
+  const dbPushLocations: string[] = [];
+  if (pkgRaw && (pkgRaw.includes('db push') || pkgRaw.includes('drizzle-kit push'))) {
+    dbPushLocations.push('package.json');
+  }
+  const pushCandidateFiles = [
+    ...(await fg('.github/workflows/*.{yml,yaml}', {
+      cwd: root,
+      suppressErrors: true,
+      absolute: true,
+    })),
+    ...(await fg('Dockerfile*', {
+      cwd: root,
+      suppressErrors: true,
+      absolute: true,
+    })),
+  ];
+  for (const file of pushCandidateFiles) {
+    let content: string;
+    try {
+      content = await readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    if (DB_PUSH_RE.test(content)) dbPushLocations.push(file.replace(root + '/', ''));
+  }
+
+  if (dbPushLocations.length > 0 && !hasMigrations) {
+    // ONE combined finding — `db push` and a missing migration directory are
+    // the same root problem; emitting both would double-penalise the project.
     findings.push({
       severity: 'high',
       category: 'database',
-      message: 'Database ORM detected but no versioned migration directory found',
-      fix: 'Use migrations instead of `db push`: run `prisma migrate dev --name init` or `drizzle-kit generate`. Migrations keep schema history auditable and reversible.',
+      message: `\`db push\` detected (${dbPushLocations.join(', ')}) and no versioned migration directory found — schema changes bypass migration history entirely`,
+      file: dbPushLocations[0],
+      fix: 'Replace `db push` with versioned migrations: generate them (`prisma migrate dev --name init`, `drizzle-kit generate`, or your ORM equivalent) and deploy with `prisma migrate deploy` / `drizzle-kit migrate` in CI/CD. `db push` bypasses migration history and can cause irreversible data loss.',
     });
-  }
-
-  const pkgPath = join(projectRoot(), 'package.json');
-  if (existsSync(pkgPath)) {
-    const raw = await readFile(pkgPath, 'utf8');
-    if (raw.includes('db push') || raw.includes('prisma db push')) {
+  } else {
+    if (dbPushLocations.includes('package.json')) {
       findings.push({
         severity: 'high',
         category: 'database',
-        message: '`prisma db push` found in package.json scripts — unsafe for production',
+        message: '`db push` found in package.json scripts — unsafe for production',
         fix: 'Replace `prisma db push` with `prisma migrate deploy` in your CI/CD pipeline. `db push` bypasses migration history and can cause irreversible data loss.',
+      });
+    }
+    for (const location of dbPushLocations) {
+      if (location === 'package.json') continue;
+      findings.push({
+        severity: 'high',
+        category: 'database',
+        message: '`db push` found in CI/build file — unsafe for production',
+        file: location,
+        fix: 'Replace `db push` with `prisma migrate deploy` (or your ORM migration runner) in your CI/CD pipeline. `db push` bypasses migration history and can cause irreversible data loss.',
+      });
+    }
+    if (!hasMigrations && hasOrm) {
+      findings.push({
+        severity: 'high',
+        category: 'database',
+        message: 'Database ORM detected but no versioned migration directory found',
+        fix: 'Use migrations instead of `db push`: run `prisma migrate dev --name init`, `drizzle-kit generate`, or generate versioned migrations for your ORM (`typeorm migration:generate`, `knex migrate:make`, `sequelize-cli migration:create`). Migrations keep schema history auditable and reversible.',
       });
     }
   }

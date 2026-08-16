@@ -34,7 +34,12 @@
       "status": "stable",
       "detect": ["opencode.json", "opencode.jsonc", "AGENTS.md"],
       "rules": { "path": "AGENTS.md", "format": "agents-md" },
-      "mcp": { "path": "opencode.json", "format": "opencode", "global": false },
+      "mcp": {
+        "path": "opencode.json",
+        "alternativePaths": ["opencode.jsonc"],
+        "format": "opencode",
+        "global": false
+      },
       "extras": [],
       "docs": "https://opencode.ai/docs/mcp"
     },
