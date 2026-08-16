@@ -58,6 +58,7 @@ export function stackPlanTemplate(input: StackPlanInput): string {
     resolved?.auth ? `auth → ${resolved.auth}` : '',
     resolved?.payments ? `payments → ${resolved.payments}` : '',
     resolved?.deploy ? `deploy → ${resolved.deploy}` : '',
+    resolved?.testing ? `testing → ${resolved.testing}` : '',
   ].filter(Boolean);
 
   sections.push(`# Stack Recommendation — ${safeName}
@@ -85,7 +86,9 @@ ${resolvedBits.length ? `> ✅ **Already solved by your stack:** ${resolvedBits.
     sections.push(categorySection(catalog, 'Payments', 'payments', 'Project handles payments (threat model).'));
   }
 
-  sections.push(categorySection(catalog, 'Testing', 'testing', 'Critical paths require tests before merge (Constitution Law 5).'));
+  if (!resolved?.testing) {
+    sections.push(categorySection(catalog, 'Testing', 'testing', 'Critical paths require tests before merge (Constitution Law 5).'));
+  }
 
   if (projectType !== 'landing' && !resolved?.deploy) {
     sections.push(categorySection(catalog, 'Deployment / Hosting', 'deploy', 'Prefer platforms with preview environments and secret management.'));

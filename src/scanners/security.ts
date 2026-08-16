@@ -140,6 +140,10 @@ export const EXCLUDED_DIRS = [
   // artefacts. `.vibe/auditignore` remains the per-project escape hatch.
   'out', '.svelte-kit', '.nuxt', '.output', '.vercel', '.turbo',
   '.wrangler', '.cache', '.docusaurus', 'storybook-static', 'docs-build',
+  // mkdocs default output (`site/`) and the harness's own generated reports
+  // (`.vibe/report/*.html`) — a lone generated index.html is not a web app,
+  // and scanning the harness's own output is self-referential noise.
+  'site', '.vibe',
 ];
 
 /** Max findings per file for the secret scan — keeps reports readable on riddled files. */

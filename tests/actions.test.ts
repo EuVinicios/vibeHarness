@@ -13,6 +13,13 @@ import { loadClientsCatalog } from '../src/registry/clients.js';
 const CWD = process.cwd();
 const roots: string[] = [];
 
+// installAction({ client: 'all' }) reaches the HOME-anchored Windsurf config
+// (`~/.codeium/windsurf/mcp_config.json`). Sandbox it via VIBE_HOME so the
+// suite never touches the real home directory (pre-0.8.4 it did — and raced
+// with whatever else reads that file, producing flaky full-suite runs).
+const FAKE_HOME = mkdtempSync(join(tmpdir(), 'vh-actions-home-'));
+const PREV_VIBE_HOME = process.env.VIBE_HOME;
+
 function mkRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'vh-actions-'));
   roots.push(root);
@@ -20,11 +27,18 @@ function mkRoot(): string {
   return root;
 }
 
+beforeAll(() => {
+  process.env.VIBE_HOME = FAKE_HOME;
+});
+
 afterEach(() => {
   process.chdir(CWD);
 });
 
 afterAll(() => {
+  if (PREV_VIBE_HOME === undefined) delete process.env.VIBE_HOME;
+  else process.env.VIBE_HOME = PREV_VIBE_HOME;
+  rmSync(FAKE_HOME, { recursive: true, force: true });
   for (const d of roots) rmSync(d, { recursive: true, force: true });
 });
 
@@ -235,6 +249,8 @@ describe('installAction (MCP config merge)', () => {
     expect(all.data.installed.length).toBeGreaterThanOrEqual(7);
     expect(existsSync(join(root, '.mcp.json'))).toBe(true);
     expect(existsSync(join(root, '.vscode', 'mcp.json'))).toBe(true);
+    // HOME-anchored Windsurf config must land in the VIBE_HOME sandbox.
+    expect(existsSync(join(FAKE_HOME, '.codeium', 'windsurf', 'mcp_config.json'))).toBe(true);
   });
 
   it('offers "all" as first option when multiple clients are detected', async () => {

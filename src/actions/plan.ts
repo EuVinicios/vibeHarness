@@ -122,7 +122,7 @@ export async function planAction(opts: PlanActionOptions = {}): Promise<ActionRe
 
   // v0.8: don't recommend replacements for capabilities the project already solved.
   const resolved = detectResolvedCapabilities();
-  const resolvedBits = [resolved.auth, resolved.payments, resolved.deploy].filter(Boolean);
+  const resolvedBits = [resolved.auth, resolved.payments, resolved.deploy, resolved.testing].filter(Boolean);
   if (resolvedBits.length > 0) {
     notes.push(`Existing stack already solves: ${resolvedBits.join(', ')} — conflicting recommendations skipped`);
   }

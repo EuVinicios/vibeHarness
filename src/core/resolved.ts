@@ -11,21 +11,30 @@ export interface ResolvedCapabilities {
   auth: string | null;
   payments: string | null;
   deploy: string | null;
+  testing: string | null;
+}
+
+interface PackageJsonShape {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+}
+
+function readPackageJson(root: string): PackageJsonShape | null {
+  try {
+    if (!existsSync(join(root, 'package.json'))) return null;
+    return JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as PackageJsonShape;
+  } catch {
+    return null;
+  }
 }
 
 function installedDeps(root: string): Set<string> {
   const deps = new Set<string>();
-  try {
-    if (!existsSync(join(root, 'package.json'))) return deps;
-    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    for (const name of Object.keys(pkg.dependencies ?? {})) deps.add(name);
-    for (const name of Object.keys(pkg.devDependencies ?? {})) deps.add(name);
-  } catch {
-    /* unparseable package.json — treat as empty */
-  }
+  const pkg = readPackageJson(root);
+  if (!pkg) return deps;
+  for (const name of Object.keys(pkg.dependencies ?? {})) deps.add(name);
+  for (const name of Object.keys(pkg.devDependencies ?? {})) deps.add(name);
   return deps;
 }
 
@@ -61,6 +70,22 @@ const DEPLOY_MARKERS: [string, string][] = [
   ['wrangler.jsonc', 'Cloudflare Workers'],
 ];
 
+/** Unit-test runners (v0.8.3 — dogfooding: recommending Vitest next to an
+ * already-configured Jest is a Law 6 violation, not help). E2E-only
+ * frameworks are deliberately absent: a project with Playwright but no unit
+ * runner still needs the unit layer Law 5 requires. */
+const TEST_RUNNER_DEPS: [string, string][] = [
+  ['jest', 'Jest'],
+  ['@jest/core', 'Jest'],
+  ['vitest', 'Vitest'],
+  ['mocha', 'Mocha'],
+  ['ava', 'AVA'],
+];
+
+/** Node's built-in runner leaves no dependency trace — the `test` script is
+ * the only evidence (`node --test`, possibly behind flags). */
+const NODE_TEST_SCRIPT_RE = /\bnode\b[^&|;]*--test\b/;
+
 /** Detect capabilities already solved by the project's current stack. */
 export function detectResolvedCapabilities(root: string = projectRoot()): ResolvedCapabilities {
   const deps = installedDeps(root);
@@ -89,5 +114,17 @@ export function detectResolvedCapabilities(root: string = projectRoot()): Resolv
     }
   }
 
-  return { auth, payments, deploy };
+  let testing: string | null = null;
+  for (const [dep, name] of TEST_RUNNER_DEPS) {
+    if (deps.has(dep)) {
+      testing = name;
+      break;
+    }
+  }
+  if (!testing) {
+    const testScript = readPackageJson(root)?.scripts?.test ?? '';
+    if (NODE_TEST_SCRIPT_RE.test(testScript)) testing = 'node:test';
+  }
+
+  return { auth, payments, deploy, testing };
 }
