@@ -44,12 +44,12 @@ importante e você terá o histórico da evolução da prontidão.
 | Seção | Máx | O que verifica |
 |-------|----:|----------------|
 | :shield: Segurança & Segredos | 30 | 19 padrões de segredo, CORS wildcard, cookies sem flags, JWT inseguro, CSRF |
-| :package: CVEs em dependências | 10 | `npm audit` (high/critical) |
-| :flag-br: LGPD | 20 | PII em logs, consentimento, páginas obrigatórias, DSR, RLS, hash de senha |
+| :package: CVEs em dependências | 10 | `npm audit`/`pnpm audit`/`yarn npm audit`/`bun audit` (high/critical) |
+| :flag-br: LGPD | 20 | PII em logs (CPF com checksum, telefone BR), consentimento, páginas obrigatórias, DSR (rotas, RPC, SQL), RLS, hash de senha |
 | :broom: Código morto & higiene | 10 | god objects, console.logs, sugestões do knip |
-| :floppy_disk: Integridade do banco | 10 | migrations versionadas vs `db push` |
-| :building_construction: Infra & resiliência | 10 | health check, rate limiting, error handlers |
-| :accessibility: Acessibilidade | 10 | alt ausente, botões/inputs sem label |
+| :floppy_disk: Integridade do banco | 10 | migrations versionadas vs `db push`/`drizzle-kit push` (package.json, CI e Dockerfile) |
+| :building_construction: Infra & resiliência | 10 | health check (inclusive sub-rotas), rate limiting, error handlers — só em projetos com superfície web |
+| :accessibility: Acessibilidade | 10 | alt ausente (`<img>` e `<Image>`), botões sem label, inputs sem label associado (`id` só conta com `<label for>`) |
 
 ## AUDIT_REPORT.md: a correção já vem escrita
 
@@ -70,9 +70,16 @@ Copilot. No final, um prompt em lote cobre todos os findings críticos/altos.
     - URI de banco local/CI (`postgres:postgres@localhost`) → `ci-ephemeral` (low)
     - Palavra sensível em mensagem estática de log (sem dado) → `static-message` (info)
 
+    Desde a **v0.8.2**, mais precisão estrutural: CPF de 11 dígitos só pontua
+    com **checksum válido** (IDs e timestamps nunca viram PII), telefone exige
+    marcador BR ou separadores, f-strings Python entram na triagem dinâmica,
+    **código comentado nunca satisfaz heurística** (logs, consentimento,
+    páginas, rate limit) e fixtures de teste não contam como app real.
+
     Para arquivos sabidamente benignos (fixtures com segredos falsos), crie
-    `.vibe/auditignore` (sintaxe gitignore). Projetos CLI/biblioteca não são
-    cobrados por obrigações web (banner de cookies, páginas de privacidade).
+    `.vibe/auditignore` (sintaxe gitignore) — respeitado por todos os scanners.
+    Projetos CLI/biblioteca não são cobrados por obrigações web (banner de
+    cookies, páginas de privacidade, health check, rate limiting).
 
 ---
 

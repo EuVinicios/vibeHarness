@@ -47,7 +47,7 @@ const RECIPE_ACTION = {
   'stripe/stripe-node': 'instala `stripe` + webhook starter (verificação de assinatura) + env vars',
   'gitleaks/gitleaks': 'binário de sistema (Homebrew, com consentimento) — scan de segredos',
   'google/osv-scanner': 'binário de sistema (Homebrew, com consentimento) — CVEs multi-ecossistema',
-  'modelcontextprotocol/servers': 'escreve `.mcp.json` com servidores MCP curados',
+  'modelcontextprotocol/servers': 'escreve `.mcp.json` com servidores MCP curados e **pinados por versão**',
   'coollabsio/coolify': 'orientação de deploy self-hosted + env vars',
 };
 
@@ -96,14 +96,24 @@ lines.push('---', '');
 
 lines.push('## 2. Padrões de aplicação — o que o `plan --apply` escolhe por categoria', '');
 lines.push(
-  'Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que possui recipe**.',
-  'É exatamente a lógica de `buildApplyPlan`: a recomendação nº 1 do registro, quando aplicável:',
+  'Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que possui recipe** —',
+  'a lógica de `buildApplyPlan`. Exceção deliberada: **testes instala dois** — Vitest',
+  '(unidade/integração, exigência da Lei 5 da Constitution) e Playwright (E2E complementar),',
+  'porque ordenar só por estrelas escolheria E2E e deixaria a cobertura de unidade de fora:',
   ''
 );
 lines.push('| Categoria | Padrão aplicado | O que instala/configura |');
 lines.push('|-----------|-----------------|-------------------------|');
 const APPLICABLE_CATEGORIES = ['validation', 'database', 'auth', 'payments', 'testing', 'security', 'mcp', 'deploy'];
 for (const category of APPLICABLE_CATEGORIES) {
+  if (category === 'testing') {
+    const vitest = (catalog.categories['testing'] ?? []).find((e) => e.repo === 'vitest-dev/vitest');
+    const playwright = (catalog.categories['testing'] ?? []).find((e) => e.repo === 'microsoft/playwright');
+    lines.push(
+      `| ${CATEGORY_TITLES['testing']} | [${vitest.name}](https://github.com/${vitest.repo}) + [${playwright.name}](https://github.com/${playwright.repo}) | ${RECIPE_ACTION['vitest-dev/vitest']} **e** ${RECIPE_ACTION['microsoft/playwright']} |`
+    );
+    continue;
+  }
   const sorted = [...(catalog.categories[category] ?? [])].sort((a, b) => b.stars - a.stars);
   const top = sorted[0];
   if (!top || !APPLY_RECIPES[top.repo]) {
@@ -132,6 +142,12 @@ lines.push('| Ferramenta | Categoria | Padrão? | O que o apply faz |');
 lines.push('|------------|-----------|:-------:|-------------------|');
 const defaultsByCategory = {};
 for (const category of APPLICABLE_CATEGORIES) {
+  if (category === 'testing') {
+    // Mirrors buildApplyPlan: Vitest is the unit default; Playwright ships as
+    // the complementary E2E layer (both are installed by `plan --apply`).
+    defaultsByCategory[category] = 'vitest-dev/vitest';
+    continue;
+  }
   const sorted = [...(catalog.categories[category] ?? [])].sort((a, b) => b.stars - a.stars);
   const top = sorted[0];
   if (top && APPLY_RECIPES[top.repo]) defaultsByCategory[category] = top.repo;

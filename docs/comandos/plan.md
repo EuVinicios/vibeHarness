@@ -35,9 +35,16 @@ Com `--apply`, o CLI:
 | Banco de dados | Supabase/Prisma/Drizzle instalado + config de migrations + `.env.example` |
 | Autenticação | Better Auth/Auth.js instalado + starter seguro + `AUTH_SECRET` no `.env.example` |
 | Pagamentos | Stripe SDK + starter de webhook **com verificação de assinatura** |
-| Testes | Vitest instalado + config + teste de exemplo |
+| Testes | **Vitest (unidade) + Playwright (E2E)** instalados + configs + exemplos |
 | Segurança | CI gate (gitleaks + CVE) + instalação dos binários (com o seu consentimento) |
-| MCP | `.mcp.json` configurado com servidores MCP curados |
+| MCP | `.mcp.json` configurado com servidores MCP curados **e pinados por versão** |
+
+!!! tip "Você vê o plano antes de confirmar"
+    No modo interativo, o `plan --apply` monta e **exibe o plano real**
+    (itens por categoria, pacotes e skips) antes de perguntar — a confirmação
+    nunca acontece no escuro. Após instalar, o apply roda o **CVE check**
+    (`npm audit` ou equivalente do seu gerenciador) na árvore aplicada e
+    avisa se houver advisory (Constitution, Lei 6).
 
 !!! info "O que continua sendo recomendação"
     Frameworks de frontend/backend (Next.js, Fastify…) e plataformas de deploy

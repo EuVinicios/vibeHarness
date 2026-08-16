@@ -24,3 +24,6 @@ docs-build/
 
 # pages staging (assembled only in CI)
 pages-staging/
+
+# local AI agent state (plans, subagent transcripts) — never version it
+.qwen/

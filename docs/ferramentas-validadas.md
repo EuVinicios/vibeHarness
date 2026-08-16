@@ -38,8 +38,10 @@ Dependências de runtime do `@vibeharness/cli` (o código que executa na sua má
 
 ## 2. Padrões de aplicação — o que o `plan --apply` escolhe por categoria
 
-Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que possui recipe**.
-É exatamente a lógica de `buildApplyPlan`: a recomendação nº 1 do registro, quando aplicável:
+Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que possui recipe** —
+a lógica de `buildApplyPlan`. Exceção deliberada: **testes instala dois** — Vitest
+(unidade/integração, exigência da Lei 5 da Constitution) e Playwright (E2E complementar),
+porque ordenar só por estrelas escolheria E2E e deixaria a cobertura de unidade de fora:
 
 | Categoria | Padrão aplicado | O que instala/configura |
 |-----------|-----------------|-------------------------|
@@ -47,9 +49,9 @@ Para cada categoria, o padrão aplicado é o projeto **mais adotado (⭐) que po
 | Banco de dados | [Supabase](https://github.com/supabase/supabase) | instala `@supabase/supabase-js` + cliente starter + env vars |
 | Autenticação | [Better Auth](https://github.com/better-auth/better-auth) | instala `better-auth` + starter + env vars |
 | Pagamentos | [Stripe Node SDK](https://github.com/stripe/stripe-node) | instala `stripe` + webhook starter (verificação de assinatura) + env vars |
-| Testes | [Playwright](https://github.com/microsoft/playwright) | instala `@playwright/test` + config de E2E |
+| Testes | [Vitest](https://github.com/vitest-dev/vitest) + [Playwright](https://github.com/microsoft/playwright) | instala `vitest` + config + teste de exemplo **e** instala `@playwright/test` + config de E2E |
 | Segurança | [Gitleaks](https://github.com/gitleaks/gitleaks) | binário de sistema (Homebrew, com consentimento) — scan de segredos |
-| Servidores MCP | [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | escreve `.mcp.json` com servidores MCP curados |
+| Servidores MCP | [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | escreve `.mcp.json` com servidores MCP curados e **pinados por versão** |
 | Deploy / Hospedagem | [Coolify](https://github.com/coollabsio/coolify) | orientação de deploy self-hosted + env vars |
 
 !!! info "Autenticação e pagamentos só entram quando declarados"
@@ -77,11 +79,11 @@ dependências, gera configs e starters (sempre fora do seu `src/`):
 | [Zod](https://github.com/colinhacks/zod) | Validação de entrada | ⭐ **padrão** | instala `zod` + starter de schema |
 | [Valibot](https://github.com/fabian-hiller/valibot) | Validação de entrada | — | instala `valibot` + starter de schema |
 | [Yup](https://github.com/jquense/yup) | Validação de entrada | — | instala `yup` + starter de schema |
-| [Vitest](https://github.com/vitest-dev/vitest) | Testes | — | instala `vitest` + config + teste de exemplo |
-| [Playwright](https://github.com/microsoft/playwright) | Testes | ⭐ **padrão** | instala `@playwright/test` + config de E2E |
+| [Vitest](https://github.com/vitest-dev/vitest) | Testes | ⭐ **padrão** | instala `vitest` + config + teste de exemplo |
+| [Playwright](https://github.com/microsoft/playwright) | Testes | — | instala `@playwright/test` + config de E2E |
 | [Jest](https://github.com/jestjs/jest) | Testes | — | instala `jest` (config por conta do projeto) |
 | [Coolify](https://github.com/coollabsio/coolify) | Deploy / Hospedagem | ⭐ **padrão** | orientação de deploy self-hosted + env vars |
-| [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | Servidores MCP | ⭐ **padrão** | escreve `.mcp.json` com servidores MCP curados |
+| [MCP Reference Servers](https://github.com/modelcontextprotocol/servers) | Servidores MCP | ⭐ **padrão** | escreve `.mcp.json` com servidores MCP curados e **pinados por versão** |
 | [Gitleaks](https://github.com/gitleaks/gitleaks) | Segurança | ⭐ **padrão** | binário de sistema (Homebrew, com consentimento) — scan de segredos |
 | [OSV-Scanner](https://github.com/google/osv-scanner) | Segurança | — | binário de sistema (Homebrew, com consentimento) — CVEs multi-ecossistema |
 
