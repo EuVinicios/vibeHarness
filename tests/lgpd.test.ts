@@ -442,3 +442,54 @@ describe('scanLGPD — v0.8.3 regressions', () => {
     expect(result.findings.some((f) => f.category === 'lgpd-rls')).toBe(true);
   });
 });
+
+describe('scanLGPD — v0.8.4 regressions (self-harness dogfooding)', () => {
+  it('generated docs output (mkdocs site/) is not a web surface — no consent/banner findings', async () => {
+    // Dogfooding finding: this repo's own `site/index.html` (mkdocs build
+    // artefact) read as a web app, producing a cookie-consent WARN on a CLI
+    // that has no UI at all. getSourceFiles globs with dot:true, so the
+    // exclusion must come from EXCLUDED_DIRS, not glob defaults.
+    await writeFile(join(tmpDir, 'cli.ts'), `export function run() { return 1; }\n`, 'utf8');
+    await mkdir(join(tmpDir, 'site'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'site', 'index.html'),
+      '<html><body><nav><a href="/">Docs</a></nav></body></html>\n',
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-consent')).toBe(false);
+    expect(result.findings.some((f) => f.category === 'lgpd-pages')).toBe(false);
+    expect(result.findings.some((f) => f.category === 'lgpd-scope' && f.severity === 'info')).toBe(true);
+  });
+
+  it('routes mentioned in comments, strings, regexes and test files are not a web surface', async () => {
+    // The harness's own scanner source tripped web-surface detection with
+    // fix-text examples (`'Add app.get("/healthz", …)'`), heuristic regexes
+    // and test fixtures — scoring the CLI as a web app.
+    await writeFile(
+      join(tmpDir, 'scanner.ts'),
+      [
+        '// docs: app.get(\'/api/users\', handler)',
+        'export const RE = /@Delete|app\\.(get|post)/;',
+        'export const fix = \'Add `app.get("/healthz", h)` to your server.\';',
+        'export function run() { return 1; }',
+      ].join('\n'),
+      'utf8'
+    );
+    await mkdir(join(tmpDir, 'tests'), { recursive: true });
+    await writeFile(join(tmpDir, 'tests', 'fixture.ts'), `app.get('/health', handler);\n`, 'utf8');
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-scope' && f.severity === 'info')).toBe(true);
+    expect(result.findings.some((f) => f.category === 'lgpd-consent')).toBe(false);
+  });
+
+  it('real server code still counts as a web surface', async () => {
+    await writeFile(
+      join(tmpDir, 'server.ts'),
+      `import express from 'express';\nconst app = express();\napp.get('/users', handler);\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(false);
+  });
+});

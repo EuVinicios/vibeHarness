@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2026-08-16 — "Dogfooding: o harness auditado por ele mesmo"
+
+Frutos de uma sessão real do VibeHarness rodando sobre o próprio repo
+(install → plan → audit → doctor via MCP). Cada atrito encontrado virou
+correção generalizada, não hack de auto-hospedagem. Suíte de 334 para 340
+testes (31 suites). Audit do próprio repo: 87 → 96/100 (grade A).
+
+### Added
+
+- **Plan detecta capacidade de teste já resolvida (Lei 6):** novo campo `testing` em `ResolvedCapabilities` reconhece Jest/Vitest/Mocha/AVA por dependência e `node --test` pelo script `test`. Com um runner já configurado, a categoria `testing` inteira é pulada (`already resolved by Jest`) — antes o plan oferecia Vitest ao lado de um Jest já instalado, duplicando funcionalidade. STACK.md passa a listar `testing → <runner>` entre as capacidades já resolvidas.
+
+### Fixed
+
+- **CLI deixa de ser pontuado como web app (auto-falso-positivo):** o audit do próprio repo perdia 6 pontos de infra cobrando `/health` e error-handler que um CLI não tem como hospedar. Três causas, três correções generalizadas: (1) saídas de build geradas/vendadas `site/` (mkdocs) e `.vibe/` entram em `EXCLUDED_DIRS` — um `index.html` gerado não é superfície web; (2) `hasWebSurface` agora ignora arquivos de teste e aplica o novo `stripCodeLiterals` antes de casar `API_SURFACE_PATTERN` — rotas citadas em comentários, textos de fix, strings e literais regex não contam (era exatamente o que os scanners do próprio harness continham); (3) evidência de servidor exige forma de import/require/chamada (`SERVER_EVIDENCE_PATTERN`, compartilhado por LGPD e infra) — a palavra solta "express" casava com identificadores (`EXPRESS_PATTERN`, `withoutExpressions`) e prosa. Servidor real continua detectado: instanciar `express()`/`createServer()` conta mesmo sem rota registrada.
+- **Teste que escrevia no home real:** `installAction({ client: 'all' })` em `tests/actions.test.ts` alcançava o config global do Windsurf (`~/.codeium/windsurf/mcp_config.json`) sem `VIBE_HOME`, poluindo a máquina e correndo contra quem mais lesse o arquivo (fonte dos flakes em suíte completa). Agora roda em fake home via `VIBE_HOME`, com asserção de que o config cai no sandbox.
+
+### Changed
+
+- **TypeScript 6.0.3** (devDependency): major bump validado com build + suíte completa + lint + knip. A 7.x foi tentada e descartada por enquanto — o compilador nativo não expõe a JS API que `ts-jest`/`typescript-eslint` exigem e o pacote estável `@typescript/native` ainda não foi publicado; 6.x é a major mais alta que a toolchain aceita.
+
 ## [0.8.3] - 2026-08-16 — "Auditoria final de certificação: hardening pós-release-gate"
 
 Resposta à auditoria final de certificação (release gate): análise estática

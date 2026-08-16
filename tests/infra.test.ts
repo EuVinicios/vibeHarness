@@ -243,3 +243,35 @@ describe('scanInfra — v0.8.3 regressions', () => {
     expect(result.findings.some((f) => f.message.includes('GitHub Actions'))).toBe(true);
   });
 });
+
+describe('scanInfra — v0.8.4 regressions (self-harness dogfooding)', () => {
+  it('generated docs output (mkdocs site/) never creates a web surface for a CLI', async () => {
+    // Dogfooding finding: this repo's own `site/index.html` (mkdocs build
+    // artefact) flipped hasWebSurface on, costing the CLI 6 infra points for
+    // a /health endpoint it cannot host.
+    await writeFile(join(tmpDir, 'cli.ts'), `export function run() { return 1; }\n`, 'utf8');
+    await mkdir(join(tmpDir, 'site'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'site', 'index.html'),
+      '<html><body><nav><a href="/">Docs</a></nav></body></html>\n',
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.score).toBe(result.maxScore);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].category).toBe('infra-scope');
+  });
+
+  it('the harness report (.vibe/report/) never creates a web surface', async () => {
+    await writeFile(join(tmpDir, 'cli.ts'), `export function run() { return 1; }\n`, 'utf8');
+    await mkdir(join(tmpDir, '.vibe', 'report'), { recursive: true });
+    await writeFile(
+      join(tmpDir, '.vibe', 'report', 'index.html'),
+      '<html><body><button>x</button></body></html>\n',
+      'utf8'
+    );
+    const result = await scanInfra();
+    expect(result.score).toBe(result.maxScore);
+    expect(result.findings[0].category).toBe('infra-scope');
+  });
+});

@@ -241,6 +241,7 @@ describe('detectResolvedCapabilities (v0.8)', () => {
       join(root, 'package.json'),
       JSON.stringify({
         dependencies: { '@supabase/supabase-js': '^2.0.0', stripe: '^14.0.0' },
+        devDependencies: { jest: '^30.0.0' },
       }),
       'utf8'
     );
@@ -249,6 +250,19 @@ describe('detectResolvedCapabilities (v0.8)', () => {
     expect(resolved.auth).toBe('Supabase Auth');
     expect(resolved.payments).toBe('Stripe');
     expect(resolved.deploy).toContain('Vercel');
+    expect(resolved.testing).toBe('Jest');
+  });
+
+  it('detects node:test from the test script when no runner dep exists', async () => {
+    const { detectResolvedCapabilities } = await import('../src/core/apply.js');
+    const root = makeTmp();
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ scripts: { test: 'node --test tests/' } }),
+      'utf8'
+    );
+    const resolved = detectResolvedCapabilities(root);
+    expect(resolved.testing).toBe('node:test');
   });
 
   it('buildApplyPlan skips categories already resolved by the existing stack', async () => {
@@ -258,13 +272,15 @@ describe('detectResolvedCapabilities (v0.8)', () => {
       hasAuth: true,
       hasPayments: true,
       installedDeps: new Set<string>(),
-      resolved: { auth: 'Supabase Auth', payments: null, deploy: 'Vercel (vercel.json)' },
+      resolved: { auth: 'Supabase Auth', payments: null, deploy: 'Vercel (vercel.json)', testing: 'Jest' },
     });
     const reasons = plan.skipped.map((s) => `${s.category}:${s.reason}`);
     expect(reasons).toContain('auth:already resolved by Supabase Auth');
     expect(reasons).toContain('deploy:already resolved by Vercel (vercel.json)');
+    expect(reasons).toContain('testing:already resolved by Jest');
     expect(plan.items.map((i) => i.category)).not.toContain('auth');
     expect(plan.items.map((i) => i.category)).not.toContain('deploy');
+    expect(plan.items.map((i) => i.category)).not.toContain('testing');
   });
 });
 

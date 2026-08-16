@@ -133,6 +133,12 @@ export function buildApplyPlan(catalog: Catalog, ctx: ApplyContext): ApplyPlan {
       skipped.push({ category, reason: `already resolved by ${ctx.resolved.deploy}` });
       continue;
     }
+    // Unit coverage already solved (Jest/Vitest/…) — recommending a rival
+    // runner duplicates functionality (Law 6) instead of adding coverage.
+    if (category === 'testing' && ctx.resolved?.testing) {
+      skipped.push({ category, reason: `already resolved by ${ctx.resolved.testing}` });
+      continue;
+    }
 
     const candidates =
       category === 'testing'

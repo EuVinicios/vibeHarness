@@ -6,7 +6,7 @@ import { projectRoot } from '../utils/fs.js';
 import { loadAuditIgnores } from '../utils/audit-ignore.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 import { EXCLUDED_DIRS, isTestFile } from './security.js';
-import { hasWebSurface, stripLineComments, API_SURFACE_PATTERN } from './lgpd.js';
+import { hasWebSurface, stripLineComments, API_SURFACE_PATTERN, SERVER_EVIDENCE_PATTERN } from './lgpd.js';
 
 /**
  * Health route — accepts `/health`, `/healthz`, `/healthcheck` and prefixed
@@ -18,9 +18,10 @@ const HEALTH_ROUTE_RE = /['"`](?:\/[\w.-]+)*\/health(?:z|check)?(?:\/(?:live|rea
 /**
  * Backend framework markers — `onError` only counts as a global error handler
  * in files that actually run a server (avoids matching React/JSX props such
- * as `<img onError={...}>` or error-boundary callbacks).
+ * as `<img onError={...}>` or error-boundary callbacks). Shared with
+ * `hasWebSurface` so both gates agree on what "runs a server" means.
  */
-const BACKEND_MARKER_RE = /express|fastify|hono|koa|createServer|app\.listen/i;
+const BACKEND_MARKER_RE = SERVER_EVIDENCE_PATTERN;
 
 /** SSR/meta frameworks: their presence means routes may exist even without
  * explicit markers in the scanned files — never classify them as static. */

@@ -18,7 +18,7 @@ import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
 import { loadAuditIgnores } from '../utils/audit-ignore.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
-import { EXCLUDED_DIRS } from './security.js';
+import { EXCLUDED_DIRS, isTestFile } from './security.js';
 
 /* ─── Patterns ─────────────────────────────────────────────────────────────── */
 
@@ -136,6 +136,78 @@ export function stripLineComments(src: string): string {
 /** SQL `--` line-comment stripper for migration/policy files. */
 export function stripSqlComments(src: string): string {
   return src.replace(/(^|[^:'"`])--[^\n]*/g, '$1');
+}
+
+/** Preceding tokens after which a `/` plausibly opens a regex literal. */
+const REGEX_PRECEDERS = new Set([
+  '(', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', ',',
+  '+', '-', '*', '%', '~', '^', '<', '>', '\n',
+]);
+
+/**
+ * Strips the CONTENTS of comments and string/template/regex literals while
+ * keeping the delimiters, so real code that merely contains a quoted path
+ * (`app.get('/health', h)` → `app.get('')`) still matches route heuristics,
+ * while examples embedded in comments, doc/fix text and regex literals never
+ * do. Not a parser — good enough for heuristic scanning.
+ */
+export function stripCodeLiterals(src: string): string {
+  let out = '';
+  let lastSignificant = '\n';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const ch = src[i];
+    const next = src[i + 1];
+
+    if (ch === '/' && next === '/') {
+      while (i < n && src[i] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++;
+      i = Math.min(i + 2, n);
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      // Keep both delimiters: `fn('/x')` must still read as `fn('')`.
+      out += ch;
+      i++;
+      while (i < n && src[i] !== ch) {
+        if (src[i] === '\\') i++;
+        i++;
+      }
+      i++;
+      out += ch;
+      lastSignificant = ch;
+      continue;
+    }
+    if (ch === '/' && REGEX_PRECEDERS.has(lastSignificant)) {
+      // Regex literal only if it closes on the same line (else division).
+      let j = i + 1;
+      let inClass = false;
+      let closed = -1;
+      while (j < n && src[j] !== '\n') {
+        if (src[j] === '\\') { j += 2; continue; }
+        if (src[j] === '[') inClass = true;
+        else if (src[j] === ']') inClass = false;
+        else if (src[j] === '/' && !inClass) { closed = j; break; }
+        j++;
+      }
+      if (closed > 0) {
+        out += '//';
+        i = closed + 1;
+        lastSignificant = '/';
+        continue;
+      }
+    }
+
+    out += ch;
+    if (!/\s/.test(ch)) lastSignificant = ch;
+    i++;
+  }
+  return out;
 }
 
 /** Insecure password hashing — labels are context-neutral: md5/sha1 also have
@@ -322,21 +394,45 @@ export const API_SURFACE_PATTERN =
   /app\.(get|post|put|patch|delete|use)\s*\(\s*['"`/]|router\.(get|post|put|patch|delete)\s*\(\s*['"`/]|@(Controller|Get|Post|Put|Delete|Route)\b|fastify\.(get|post|put|delete)\s*\(|@(app|ctr)\.(Get|Post|Put|Delete)/;
 
 /**
+ * Backend/server evidence in real code — a project that instantiates an HTTP
+ * server has web obligations even before its first route is registered.
+ * Deliberately requires import/require/call forms: bare word matches hit
+ * identifiers (`EXPRESS_PATTERN`, `withoutExpressions`) and prose, which
+ * scored the harness's own CLI as a web app (v0.8.4 dogfooding).
+ */
+export const SERVER_EVIDENCE_PATTERN =
+  /\brequire\s*\(\s*['"](express|fastify|hono|koa)['"]\)|\bfrom\s+['"](express|fastify|hono|koa)['"]|\b(express|fastify|hono|koa)\s*\(|createServer\s*\(|app\.listen\s*\(/i;
+
+/**
  * True when the project exposes a web surface (UI components or HTTP routes).
  * Pure CLIs/libraries skip the web-only LGPD checks (consent banner, privacy
  * pages, DSR endpoints) — they are web-application obligations (LGPD Art. 8/9/18
  * apply to data controllers operating user-facing services, not dev tooling).
  */
 export async function hasWebSurface(uiFiles: string[], sourceFiles: string[]): Promise<boolean> {
-  if (uiFiles.length > 0) return true;
+  // Test fixtures routinely contain mock routes/UI — they do not make the
+  // project a web app (mirrors the isTestFile skip in scanInfra's main loop).
+  const root = projectRoot();
+  const isAppFile = (f: string): boolean => !isTestFile(f.replace(root + '/', ''));
+  if (uiFiles.some(isAppFile)) return true;
   for (const file of sourceFiles) {
+    if (!isAppFile(file)) continue;
     let content: string;
     try {
       content = await readFile(file, 'utf8');
     } catch {
       continue;
     }
-    if (API_SURFACE_PATTERN.test(content)) return true;
+    if (file.endsWith('.py')) {
+      content = content.replace(/(^|\n)[ \t]*#[^\n]*/g, '$1');
+    }
+    // Route examples inside comments, doc/fix strings and regex literals are
+    // not an API surface (v0.8.4 dogfooding: the harness's own scanner prose
+    // scored the CLI as a web app). Real server evidence still counts — a
+    // project that instantiates an HTTP server has web obligations even
+    // before its first route is registered.
+    const stripped = stripCodeLiterals(content);
+    if (API_SURFACE_PATTERN.test(stripped) || SERVER_EVIDENCE_PATTERN.test(stripped)) return true;
   }
   return false;
 }
