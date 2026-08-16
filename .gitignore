@@ -21,3 +21,6 @@ coverage/
 
 # mkdocs build output (generated, uploaded by docs.yml)
 docs-build/
+
+# pages staging (assembled only in CI)
+pages-staging/

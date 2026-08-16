@@ -1,12 +1,13 @@
-name: Docs
+name: Pages
 
 on:
   push:
     branches: [main]
     paths:
+      - 'site/**'
       - 'docs/**'
       - 'mkdocs.yml'
-      - '.github/workflows/docs.yml'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build docs
+    name: Build landing + docs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,26 +34,26 @@ jobs:
       - name: Install mkdocs-material
         run: python3 -m pip install --upgrade pip mkdocs-material
 
-      - name: Build (validation)
-        run: mkdocs build --strict --clean
+      - name: Assemble site (landing na raiz + docs em /docs/)
+        run: |
+          mkdir -p pages-staging/docs
+          cp -r site/. pages-staging/
+          mkdocs build --strict --clean --site-dir pages-staging/docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
         with:
-          path: docs-build
-          name: docs
+          path: pages-staging
 
   deploy:
-    name: Deploy docs
+    name: Deploy
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}/docs/
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
-        with:
-          artifact_name: docs
