@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os';
 import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { scanLGPD } from '../src/scanners/lgpd.js';
+import { scanLGPD, stripLineComments } from '../src/scanners/lgpd.js';
 
 const originalCwd = process.cwd;
 let tmpDir: string;
@@ -432,6 +432,16 @@ describe('scanLGPD — v0.8.3 regressions', () => {
     await writeFile(join(tmpDir, 'doc.ts'), '/** Example: console.log("contact a@b.co") */\nexport const x = 1;\n', 'utf8');
     const commented = await scanLGPD();
     expect(commented.findings.some((f) => f.category === 'lgpd-pii-logs')).toBe(false);
+  });
+
+  it('stripLineComments reaches a fixed point (nested markers cannot reconstruct)', () => {
+    // CodeQL js/incomplete-multi-character-sanitization: removing the inner
+    // comment re-forms `<!--` from the surrounding `<!` + `--`; a single pass
+    // would leave a reconstructed comment hiding the PII line.
+    const crafted = '<!' + '<!--inner-->' + '-- console.log("contact a@b.co") -->';
+    const out = stripLineComments(crafted);
+    expect(out).not.toContain('<!--');
+    expect(out).not.toContain('a@b.co');
   });
 
   it('a commented-out CREATE POLICY no longer fakes RLS evidence', async () => {

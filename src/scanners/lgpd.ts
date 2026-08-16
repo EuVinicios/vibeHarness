@@ -119,6 +119,10 @@ function triageSensitiveLog(callLine: string, kwIndex: number): 'dynamic' | 'sta
  * HTML comments and `// …` line comments (unless part of a URL, `://`) so
  * commented-out code, JSDoc examples and TODO notes never satisfy detection
  * heuristics. Not a parser — good enough for heuristic scanning.
+ *
+ * Runs to a fixed point: a single pass can reconstruct a marker via nesting
+ * (e.g. `<!` + removed comment + `--` re-forms an HTML comment), which is
+ * the incomplete-sanitization class CodeQL flags.
  */
 export function stripLineComments(src: string): string {
   let out = src;
@@ -127,10 +131,10 @@ export function stripLineComments(src: string): string {
     prev = out;
     out = out
       .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/<!--[\s\S]*?-->/g, '');
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
   } while (out !== prev);
-
-  return out.replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
+  return out;
 }
 
 /** SQL `--` line-comment stripper for migration/policy files. */
