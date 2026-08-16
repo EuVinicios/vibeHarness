@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Pages
-        uses: actions/configure-pages@9833f4713f3f1f9963abb1992247b0f869801383
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
 
       # Pure static site — no build step; the /site/ folder is published at the root.
       - name: Upload artifact
