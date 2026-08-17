@@ -49,32 +49,56 @@ if command -v gitleaks >/dev/null 2>&1; then
     exit 1
   fi
 else
-  # Fallback: grep with the most critical patterns.
+  # Fallback: grep with the most critical patterns (two tiers).
+  #   VH_CRITICAL — vendor-key families: block ALWAYS, even in files listed
+  #                 in .vibe/auditignore (non-test files), mirroring the
+  #                 v0.9 audit rule that criticals cannot be suppressed.
+  #   VH_GENERIC  — generic password/secret assignments with long literals:
+  #                 skipped for auditignored files (fixture workflow).
   # Reads staged files from a temp file so the loop runs in THIS shell
   # (pipeline subshells cannot abort the hook) and filenames with spaces work.
-  VH_PATTERNS="sk_live_|sk-ant-|sk-proj_|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[0-9A-Za-z_-]{20,}|xox[abprs]-|AIza[0-9A-Za-z_-]{35}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY"
+  VH_CRITICAL="sk_live_[0-9a-zA-Z]{24,}|pk_live_[0-9a-zA-Z]{24,}|sk_test_[0-9a-zA-Z]{24,}|sk-ant-[0-9a-zA-Z_-]{20,}|sk-proj-[0-9a-zA-Z_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9]{22}|glpat-[0-9A-Za-z_-]{20,}|xox[abprs]-|AIza[0-9A-Za-z_-]{35}|hf_[A-Za-z0-9]{30,}|SG\\.[0-9A-Za-z_-]{16,}|re_[A-Za-z0-9]{32,}|[0-9]{8,10}:AA[A-Za-z0-9_-]{33}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY"
+  VH_GENERIC="(password|passwd|api[_-]?key|secret)[\\"']?[[:space:]]*[:=][[:space:]]*[\\"'][^\\"']{12,}[\\"']"
   VH_TMP="$(mktemp)"
   git diff --cached --name-only > "$VH_TMP" 2>/dev/null
   VH_BLOCKED=0
   while IFS= read -r VH_FILE; do
     [ -n "$VH_FILE" ] || continue
-    # Skip files allow-listed in .vibe/auditignore (same file the audit
-    # scanners honour) — e.g. test fixtures and pattern-definition sources.
+    VH_IGNORED=0
     if [ -f ".vibe/auditignore" ]; then
-      VH_SKIPPED=0
       while IFS= read -r VH_IGN; do
         case "$VH_IGN" in ""|'#'*) continue ;; esac
+        # v0.9 inline reasons (path # reason) — strip and trim before matching
+        VH_IGN="\${VH_IGN%%#*}"
+        VH_IGN=$(printf '%s' "$VH_IGN" | tr -d '[:space:]')
+        [ -n "$VH_IGN" ] || continue
         case "$VH_FILE" in
-          $VH_IGN) VH_SKIPPED=1; break ;;
+          $VH_IGN) VH_IGNORED=1; break ;;
         esac
       done < ".vibe/auditignore"
-      [ "$VH_SKIPPED" -eq 1 ] && continue
     fi
-    if [ -f "$VH_FILE" ] && grep -Eq "$VH_PATTERNS" "$VH_FILE" 2>/dev/null; then
+    [ -f "$VH_FILE" ] || continue
+    VH_SCAN_CRIT=1
+    VH_SCAN_GEN=1
+    if [ "$VH_IGNORED" -eq 1 ]; then
+      # Test fixtures keep full suppression (documented workflow);
+      # non-test ignored files still block on vendor criticals.
+      case "$VH_FILE" in
+        *.test.*|*.spec.*|*test_*.py|*conftest.py|*/tests/*|*/__tests__/*|*/fixtures/*) VH_SCAN_CRIT=0; VH_SCAN_GEN=0 ;;
+        *) VH_SCAN_GEN=0 ;;
+      esac
+    fi
+    if [ "$VH_SCAN_CRIT" -eq 1 ] && grep -Eq "$VH_CRITICAL" "$VH_FILE" 2>/dev/null; then
       echo ""
       echo "🚨 vibe-harness: Potential secret detected in: $VH_FILE"
       echo "   Commit blocked. Move secrets to environment variables."
-      echo "   (Install gitleaks for full coverage: https://github.com/gitleaks/gitleaks)"
+      VH_BLOCKED=1
+    elif [ "$VH_SCAN_GEN" -eq 1 ] && grep -Eq "$VH_GENERIC" "$VH_FILE" 2>/dev/null; then
+      echo ""
+      echo "🚨 vibe-harness: Potential hardcoded credential detected in: $VH_FILE"
+      echo "   Commit blocked. Move the value to an environment variable (or"
+      echo "   shorten the placeholder in tests). Install gitleaks for fewer false"
+      echo "   positives: https://github.com/gitleaks/gitleaks"
       VH_BLOCKED=1
     fi
   done < "$VH_TMP"
@@ -210,6 +234,11 @@ export async function initAction(opts: InitActionOptions = {}): Promise<ActionRe
     outputs.push('.git/hooks/pre-commit');
     notes.push(`pre-commit hook ${hook.status}`);
   }
+
+  // Baseline the guardrails for tamper detection (verified on every audit).
+  const { writeGuardrailsManifest, GUARDRAILS_MANIFEST_PATH } = await import('../utils/guardrails.js');
+  await writeGuardrailsManifest(root);
+  outputs.push(GUARDRAILS_MANIFEST_PATH);
 
   return {
     ok: true,

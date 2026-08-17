@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-08-17 — "Auditoria Adversarial: fechando os furos do colete salva-vidas"
+
+Resposta à auditoria crítica independente (comitê Architect/AppSec/DPO-LGPD/PM-DX)
+que mapeou 13 falsas sensações de segurança na v0.8.x. Todos os gaps P0/P1
+fechados; P2 de resiliência de banco entregue. Breaking change comportamental
+deliberado: o audit agora **falha com qualquer finding crítico**, mesmo acima
+do limite de score.
+
+### Added
+
+- **Gate de críticos (P0):** `passed` exige `criticalFindings === 0` além do
+  score (src/actions/audit.ts). Escape hatch explícito e auditável:
+  `--allow-critical` (CLI), `allowCritical` (MCP `vibe_audit`) — nunca incluído
+  no workflow/CI gerado. O fluxo guiado `start` mantém o escape para não
+  morrer no meio do onboarding.
+- **Modelo de supressão do auditignore (P0):** exclusões suprimem com
+  contabilidade — o relatório informa padrões ativos, arquivos cobertos,
+  findings suprimidos e entradas sem motivo inline (`path  # motivo`).
+  **Findings críticos não são suprimíveis fora de arquivos de teste**;
+  padrões amplos (`**/*`, `src/**`, `**/*.ts`) viram finding **high** em vez
+  de serem honrados em silêncio. O hook pre-commit segue a mesma regra em
+  dois níveis (famílias vendor bloqueiam sempre fora de testes).
+- **Guardrails anti-tamper (P0):** `init` grava `.vibe/guardrails.json`
+  (SHA-256 da CONSTITUTION.md, estado do `.env` no `.gitignore`, presença do
+  hook). Todo audit compara com o baseline: constitution deletada (critical),
+  `.env` removido do gitignore (critical), hook removido/editado (high),
+  `core.hooksPath` redirecionado (high — o bypass clássico do `--no-verify`),
+  manifest corrompido (medium).
+- **Scanner taint-lite (P1):** sinks OWASP visíveis por regex com janela de
+  contexto, zero dependências novas — SQLi (`$queryRawUnsafe`/
+  `$executeRawUnsafe`/`sql.raw`/f-string SQL com input de request → critical),
+  SSRF (fetch/axios com URL de `req.*` sem marcador de allowlist → high),
+  BOLA/IDOR (`findUnique`/`update`/`delete` por `req.params` sem ownership
+  próxima → high) e log de corpo inteiro (`console.log(req.body)`,
+  `logger.info({ user })` → high). Arquivos de teste ficam isentos (fixtures).
+- **Cobertura lexical expandida (P1):** entropia de Shannon (threshold 4.5)
+  captura blobs sem prefixo conhecido (`const token = "Zq8fJ..."`,
+  identificadores hash/digest isentos); literais em backtick agora contam nos
+  padrões genéricos; novos vendors: GitHub fine-grained (`github_pat_`),
+  Telegram bot token, Resend (`re_`); `sk_test_`/`pk_test_` viram medium
+  (rotação) em vez de sumir; valores montados por template literal misto
+  (`pass-${x}`) viram medium para revisão; segredos agora escaneados também em
+  `.go/.rb/.php/.java/.cs`.
+- **Narrowing do `isFakeValue` (P1):** valores com mistura de classes
+  (dígitos + símbolos, ≥12 chars) nunca mais são rebaixados por palavras como
+  "admin"/"senha" — `Admin@Prod2026` agora é critical, não low.
+- **Packager v0.9 (P1):** redação por entropia (callback com allowlist),
+  identificadores camelCase (`const token = …`), chaves YAML capitalizadas
+  (`Password:`), literais em backtick, `github_pat_`/`sk_test_` via padrões
+  compartilhados; e correção de over-redaction: pins npm
+  (`@scope/pkg@1.2.3`) deixam de ser redigidos (observado no próprio
+  CONTEXT.md do repo com os servidores MCP pinados).
+- **LGPD: trackers sem consent gating (P2):** GA/gtag, Meta Pixel, Hotjar,
+  Clarity e TikTok Pixel em UI de produção sem mecanismo de consentimento →
+  finding **high** (LGPD Art. 7/8 + orientação de cookies da ANPD).
+- **LGPD: heurística de cascata DSR (P2):** endpoint de deleção sem evidência
+  de `$transaction`/`deleteMany`/`ON DELETE CASCADE` → medium (resto
+  relacional = falha real de eliminação perante a ANPD).
+- **Starters de resiliência (P2):** singleton serverless-safe de PrismaClient
+  (`globalThis`) e de Pool do Drizzle com notas de pooling
+  (PgBouncer/Accelerate/endpoint pooled 6543, `max` pequeno em produção),
+  mais `.vibe/starters/database/MIGRATIONS.md` — guia de troubleshooting para
+  os três travamentos clássicos (migration falhou, drift, P3005 baseline) e a
+  regra de ouro (migrations rodam no deploy com conexão direta, nunca na app).
+
+### Changed
+
+- **Pre-commit fallback em dois níveis (P1):** sem gitleaks, o hook bloqueia
+  famílias vendor (incl. as novas) **sempre** — até em arquivos do
+  auditignore fora de testes — e credenciais genéricas longas (≥12 chars) nos
+  demais; parsing do auditignore aceita motivos inline (`path # motivo`).
+- **CI template:** job renomeado para "score ≥ 70, zero criticals"; o comando
+  permanece `audit --fail-under 70` — o gate de críticos é o default do CLI,
+  e `--allow-critical` é deliberadamente ausente do template.
+- Versão 0.8.5 → 0.9.0 (mudança comportamental do gate).
+
+### Tests
+
+- Suíte expandida: gate de críticos (3), auditignore v0.9 (10), guardrails
+  anti-tamper (9), taint-lite (8), cobertura lexical (8), packager v0.9 (5),
+  trackers/cascata LGPD (5) — além das atualizações nos testes legados de
+  DSR para o finding de cascata.
+
 ## [0.8.5] - 2026-08-16 — "Experiência do Usuário & Vibecoding: Onboarding Visual, Mesclagem Inteligente de Regras e IA Proativa"
 
 Aprimoramento completo da experiência de onboarding para vibecoders (não-programadores) e agentes de IA. Suíte expandida para 343 testes (31 suites) 100% passando. Score de prontidão: 96/100 (grade A).

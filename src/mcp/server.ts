@@ -177,10 +177,16 @@ Proactive workflow:
         report: z.boolean().optional().describe('Also write AUDIT_REPORT.md with AI fix prompts'),
         site: z.boolean().optional().describe('Also write the visual HTML report (.vibe/report/index.html)'),
         failUnder: z.number().optional().describe('Pass threshold (default 70)'),
+        allowCritical: z
+          .boolean()
+          .optional()
+          .describe(
+            'Explicit escape hatch for the zero-criticals gate. Default false: any critical finding fails the audit. Only set true when the human explicitly accepts the risk — never on your own initiative.'
+          ),
       },
     },
-    async ({ report, site, failUnder }) =>
-      exec(() => auditAction({ report, site, failUnder }))
+    async ({ report, site, failUnder, allowCritical }) =>
+      exec(() => auditAction({ report, site, failUnder, allowCritical }))
   );
 
   server.registerTool(

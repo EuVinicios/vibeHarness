@@ -195,3 +195,50 @@ describe('packContext', () => {
     expect(content).not.toContain('first-secret-value');
   });
 });
+
+describe('packager redaction expansion (v0.9)', () => {
+  it('redacts camelCase identifiers (const token = "…")', async () => {
+    // Built at runtime so the high-entropy literal never appears in source (gitleaks)
+    const blob = 'Zq8fJ9' + 'xKw2mNpQ7vRt4uLs3hYb';
+    await writeFile(join(tmpDir, 'cfg.ts'), `const token = "${blob}";\n`, 'utf8');
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const ctx = await readFile(result.outputPath, 'utf8');
+    expect(ctx).not.toContain('Zq8fJ9');
+    expect(ctx).toContain('[REDACTED by vibe-harness]');
+  });
+
+  it('redacts capitalized YAML keys (Password:)', async () => {
+    await writeFile(join(tmpDir, 'svc.yaml'), 'Password: Sup3rS3cretValue\n', 'utf8');
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const ctx = await readFile(result.outputPath, 'utf8');
+    expect(ctx).not.toContain('Sup3rS3cretValue');
+  });
+
+  it('redacts GitHub fine-grained tokens (github_pat_)', async () => {
+    const pat = 'github_pat_' + 'A'.repeat(22) + '_' + 'B'.repeat(59);
+    await writeFile(join(tmpDir, 'gh.ts'), `const t = "${pat}";\n`, 'utf8');
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const ctx = await readFile(result.outputPath, 'utf8');
+    expect(ctx).not.toContain(pat);
+  });
+
+  it('no longer over-redacts npm version pins (MCP server pins)', async () => {
+    await writeFile(
+      join(tmpDir, 'pins.ts'),
+      "const MCP_SERVER_FILESYSTEM = '@modelcontextprotocol/server-filesystem@2026.7.10';\n",
+      'utf8'
+    );
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const ctx = await readFile(result.outputPath, 'utf8');
+    expect(ctx).toContain('@modelcontextprotocol/server-filesystem@2026.7.10');
+  });
+
+  it('never redacts high-entropy values on non-secret identifiers', async () => {
+    // Built at runtime so the high-entropy literal never appears in source (gitleaks)
+    const blob = 'Zq8fJ9' + 'xKw2mNpQ7vRt4u';
+    await writeFile(join(tmpDir, 'ok.ts'), `const displayName = "${blob}";\n`, 'utf8');
+    const result = await packContext({ outputPath: join(tmpDir, 'CONTEXT.md') });
+    const ctx = await readFile(result.outputPath, 'utf8');
+    expect(ctx).toContain(blob);
+  });
+});

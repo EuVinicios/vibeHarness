@@ -124,6 +124,7 @@ jsonFlag(
     .option('--site', 'Also write the visual report (.vibe/report/index.html)')
     .option('--yes', 'Skip prompts (visual report only with --site)')
     .option('--fail-under <score>', 'Exit with code 1 if score is below N', '70')
+    .option('--allow-critical', 'Explicit escape hatch: pass the gate even with critical findings (auditable via CI history)')
     .action(auditCommand)
 );
 

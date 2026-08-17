@@ -1,6 +1,6 @@
 {
   "name": "@vibeharness/cli",
-  "version": "0.8.5",
+  "version": "0.9.0",
   "description": "Production harness for vibecoding — PRD, spec, curated stack recommendations, AI rules, context packing and audits in a single CLI",
   "type": "module",
   "bin": {

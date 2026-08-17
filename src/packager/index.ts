@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { join, relative, extname, resolve, dirname, sep } from 'node:path';
 import fg from 'fast-glob';
 import { projectRoot, ensureDir } from '../utils/fs.js';
-import { SECRET_PATTERNS, EXCLUDED_DIRS } from '../scanners/security.js';
+import { SECRET_PATTERNS, TEST_KEY_PATTERNS, EXCLUDED_DIRS, shannonEntropy } from '../scanners/security.js';
 
 /** File extensions to include as readable source */
 const TEXT_EXTENSIONS = new Set([
@@ -34,11 +34,23 @@ const REDACTED = '[REDACTED by vibe-harness]';
 const GENERIC_ASSIGN_PATTERNS: RegExp[] = [
   // env-style, unquoted: DB_PASSWORD=sup3rs3cret (8+ chars, no spaces)
   /^(\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|SECRET|TOKEN|API_?KEY|ACCESS_KEY|PRIVATE_KEY|CREDENTIALS?)[A-Za-z0-9_]*\s*=\s*)(["']?)[^\s"']{8,}\2\s*$/,
-  // YAML-style, quoted or bare: password: sup3rs3cret / api_key: "value"
-  /^(\s*-?\s*[A-Za-z_][A-Za-z0-9_-]*(?:password|secret|token|api[_-]?key|access[_-]?key)[A-Za-z0-9_-]*\s*:\s+)(?:"[^"]{8,}"|'[^']{8,}'|[^\s#]{8,})\s*$/,
+  // YAML-style, quoted or bare, any key case: Password: sup3rs3cret / api_key: "value"
+  /^(\s*-?\s*[A-Za-z0-9_-]*(?:password|secret|token|api[_-]?key|access[_-]?key)[A-Za-z0-9_-]*\s*:\s+)(?:"[^"]{8,}"|'[^']{8,}'|[^\s#]{8,})\s*$/i,
   // generic UPPER_CASE var with quoted value: const STRIPE_KEY = "sk_..."
-  /^(\s*(?:export\s+)?(?:const|let|var)?\s*[A-Z_][A-Z0-9_]{3,}\s*=\s*)(["'])[^"']{8,}\2/,
+  /^(\s*(?:export\s+)?(?:const|let|var)?\s*[A-Z_][A-Z0-9_]{3,}\s*=\s*)(["'`])[^"'`]{8,}\2/,
+  // camelCase secret-ish var with quoted/backtick value: const apiKey = "…", let token = `…`
+  /^(\s*(?:const|let|var)\s+(?:api?Key|apiKey|token|secret|password|passwd|credential|clientSecret|accessToken|refreshToken)[A-Za-z0-9_]*\s*=\s*)(["'`])[^"'`]{8,}\2/,
 ];
+
+/**
+ * Unprefixed high-entropy literals (v0.9): opaque base64/hex blobs assigned
+ * to secret-ish identifiers, in ANY case (`token = "Zq8fJ…"`). Entropy is
+ * checked in the replace callback so known-safe values survive.
+ */
+const ENTROPY_ASSIGN_PATTERN =
+  /\b((?:api[_-]?|access[_-]?|client[_-]?)?key|token|secret|password|passwd|credential)[A-Za-z0-9_]*\s*[:=]\s*(["'`])([A-Za-z0-9+/_-]{20,})\2/gi;
+
+const ENTROPY_THRESHOLD = 4.5;
 
 /**
  * Values that look secret-ish but are known-safe — never redact.
@@ -48,6 +60,10 @@ const GENERIC_ASSIGN_PATTERNS: RegExp[] = [
 const SAFE_VALUE_PATTERNS: RegExp[] = [
   // git commit SHAs & content hashes — CI action pins, integrity checksums
   /^["']?[0-9a-fA-F]{7,64}["']?$/,
+  // npm package version pins — `@scope/pkg@1.2.3`, `pkg@2.0.0-rc.1`
+  // (v0.9: the UPPER_CASE fallback used to redact these — over-redaction
+  // observed in this repo's own CONTEXT.md with pinned MCP servers).
+  /^["']?(@[a-z0-9~][a-z0-9-._~]*\/)?[a-z0-9~][a-z0-9-._~]*@\d+(?:\.\d+){1,2}(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?["']?$/,
   // shell command substitution: $(mktemp), $(date …)
   /^["']?\$\(/,
   // regex alternation lists (secret *prefixes*, not secrets): sk_live_|sk-ant-
@@ -68,10 +84,21 @@ function redactLine(line: string): string {
   // SECRET_PATTERNS stay flag-free (stateful `.test()` elsewhere), so the
   // global variant is built here.
   let out = line;
-  for (const [pattern] of SECRET_PATTERNS) {
+  const allPatterns: [RegExp, string][] = [
+    ...SECRET_PATTERNS,
+    ...TEST_KEY_PATTERNS.map((entry: [RegExp, string]) => entry),
+  ];
+  for (const [pattern] of allPatterns) {
     const flags = pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g';
     out = out.replace(new RegExp(pattern.source, flags), REDACTED);
   }
+  // Unprefixed high-entropy blobs on secret-ish identifiers (v0.9) — the
+  // entropy check lives in the callback so safe values (pins, hashes)
+  // pass through untouched.
+  out = out.replace(ENTROPY_ASSIGN_PATTERN, (whole, identifier: string, quote: string, value: string) => {
+    if (isSafeValue(value) || shannonEntropy(value) < ENTROPY_THRESHOLD) return whole;
+    return whole.replace(`${quote}${value}${quote}`, `${quote}${REDACTED}${quote}`);
+  });
   // Generic fallbacks — keep the identifier, redact only the value. Loops so
   // several assignments on one (minified) line are all handled; stops early
   // on a known-safe value (SHA/substitution), matching the pre-0.8.3 contract.

@@ -46,15 +46,19 @@ describe('scanSecrets — secret patterns', () => {
     expect(result.findings.some((f) => f.file === '.env')).toBe(false);
   });
 
-  it('honors .vibe/auditignore exclusions', async () => {
+  it('auditignore suppresses non-critical findings, but criticals survive in non-test files (v0.9)', async () => {
     await mkdir(join(tmpDir, '.vibe'), { recursive: true });
     await writeFile(join(tmpDir, '.vibe', 'auditignore'), '# fixtures\nleaky.ts\n', 'utf8');
     const awsKey = 'AKIA' + 'ABCDEFGHIJKLMNOP';
-    await writeFile(join(tmpDir, 'leaky.ts'), `const a = "${awsKey}";\n`, 'utf8'); // ignored
+    await writeFile(join(tmpDir, 'leaky.ts'), `const a = "${awsKey}";\n`, 'utf8'); // critical → NOT suppressed
     await writeFile(join(tmpDir, 'victim.ts'), `const b = "${awsKey}";\n`, 'utf8'); // flagged
     const result = await scanSecrets();
-    expect(result.findings.some((f) => f.file === 'leaky.ts')).toBe(false);
+    // Vendor criticals can no longer be hidden by auditignore in non-test files.
+    expect(result.findings.some((f) => f.file === 'leaky.ts')).toBe(true);
     expect(result.findings.some((f) => f.file === 'victim.ts')).toBe(true);
+    // Suppression accounting is surfaced in the report.
+    const summary = result.findings.find((x) => x.category === 'auditignore' && x.severity === 'info');
+    expect(summary).toBeTruthy();
   });
 });
 
@@ -245,5 +249,241 @@ describe('scanSecrets — triage (v0.8)', () => {
     // only an info finding (0 deduction) + possibly gitignore high
     const secFindings = result.findings.filter((f) => f.category === 'secrets' && f.file === 'a.sh');
     expect(secFindings.every((f) => f.severity === 'info')).toBe(true);
+  });
+});
+
+describe('scanSecrets — auditignore suppression model (v0.9)', () => {
+  it('vendor secrets in ignored NON-test files survive the ignore list', async () => {
+    await mkdir(join(tmpDir, '.vibe'), { recursive: true });
+    await writeFile(join(tmpDir, '.vibe', 'auditignore'), 'config/prod.ts  # known\n', 'utf8');
+    await mkdir(join(tmpDir, 'config'), { recursive: true });
+    const awsKey = 'AKIA' + 'ABCDEFGHIJKLMNOP';
+    await writeFile(join(tmpDir, 'config', 'prod.ts'), `const k = "${awsKey}";\n`, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'config/prod.ts');
+    expect(f?.severity).toBe('critical');
+    expect(f?.triage).toBe('real');
+  });
+
+  it('vendor fixtures in ignored TEST files stay suppressed (documented workflow)', async () => {
+    await mkdir(join(tmpDir, '.vibe'), { recursive: true });
+    await writeFile(join(tmpDir, '.vibe', 'auditignore'), 'tests/keys.test.ts  # fixtures\n', 'utf8');
+    await mkdir(join(tmpDir, 'tests'), { recursive: true });
+    const awsKey = 'AKIA' + 'ABCDEFGHIJKLMNOP';
+    await writeFile(join(tmpDir, 'tests', 'keys.test.ts'), `const k = "${awsKey}";\n`, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'tests/keys.test.ts');
+    expect(f).toBeUndefined();
+    const summary = result.findings.find((x) => x.category === 'auditignore' && x.severity === 'info');
+    expect(summary?.message).toContain('suppressed');
+  });
+
+  it('non-vendor NON-critical findings in ignored files are suppressed but counted', async () => {
+    await mkdir(join(tmpDir, '.vibe'), { recursive: true });
+    await writeFile(join(tmpDir, '.vibe', 'auditignore'), 'src/legacy.ts\n', 'utf8');
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    // medium-severity heuristic (cookie without httpOnly) — suppressible
+    await writeFile(join(tmpDir, 'src', 'legacy.ts'), "res.cookie('sid', 'abc');\n", 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'src/legacy.ts' && x.category === 'secrets')).toBeUndefined();
+    const summary = result.findings.find((x) => x.category === 'auditignore' && x.severity === 'info');
+    // Both the cookie-flags and the session/CSRF heuristics fire (2 medium).
+    expect(summary?.message).toContain('2 finding(s) suppressed');
+    expect(summary?.message).toContain('1 entry(ies) missing an inline reason');
+  });
+
+  it('generic REAL credentials in ignored files survive suppression (criticals cannot be hidden)', async () => {
+    await mkdir(join(tmpDir, '.vibe'), { recursive: true });
+    await writeFile(join(tmpDir, '.vibe', 'auditignore'), 'src/legacy.ts\n', 'utf8');
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'legacy.ts'), 'const password = "MyP4ss!2026x";\n', 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'src/legacy.ts');
+    expect(f?.severity).toBe('critical');
+    expect(f?.triage).toBe('real');
+  });
+
+  it('overly broad patterns are flagged high instead of honoured silently', async () => {
+    await mkdir(join(tmpDir, '.vibe'), { recursive: true });
+    await writeFile(join(tmpDir, '.vibe', 'auditignore'), '**/*.ts  # everything\n', 'utf8');
+    await writeFile(join(tmpDir, 'index.ts'), 'const password = "MyP4ss!2026x";\n', 'utf8');
+    const result = await scanSecrets();
+    const broad = result.findings.find((x) => x.category === 'auditignore' && x.severity === 'high');
+    expect(broad?.message).toContain('overly broad');
+    // The kill-switch must not hide incidents: the critical secret is still reported.
+    expect(result.findings.find((x) => x.file === 'index.ts' && x.severity === 'critical')).toBeTruthy();
+  });
+
+  it('no auditignore hygiene findings when the file is absent', async () => {
+    await writeFile(join(tmpDir, 'index.ts'), 'const ok = 1;\n', 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.category === 'auditignore')).toBeUndefined();
+  });
+});
+
+describe('scanTaintLite — OWASP sinks a regex can see (v0.9)', () => {
+  it('flags $queryRawUnsafe fed by request input as critical', async () => {
+    await writeFile(
+      join(tmpDir, 'repo.ts'),
+      'const rows = await prisma.$queryRawUnsafe(`SELECT * FROM users WHERE name = \'${req.query.name}\'`);\n',
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'repo.ts' && x.category === 'injection');
+    expect(f?.severity).toBe('critical');
+    expect(f?.message).toContain('SQL injection');
+  });
+
+  it('flags drizzle sql.raw with request input', async () => {
+    await writeFile(
+      join(tmpDir, 'repo.ts'),
+      "const q = sql.raw('SELECT * FROM posts WHERE title = ' + req.body.title);\n",
+      'utf8'
+    );
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'repo.ts' && x.message.includes('sql.raw'))).toBeTruthy();
+  });
+
+  it('does not flag raw SQL with only internal constants', async () => {
+    await writeFile(
+      join(tmpDir, 'repo.ts'),
+      "const TABLE = 'users';\nconst rows = await prisma.$queryRawUnsafe(`SELECT * FROM ${TABLE}`);\n",
+      'utf8'
+    );
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'repo.ts' && x.category === 'injection')).toBeUndefined();
+  });
+
+  it('flags fetch of a user-controlled URL (SSRF) and respects allowlist markers', async () => {
+    await writeFile(join(tmpDir, 'ssrf.ts'), 'const r = await fetch(req.body.webhookUrl);\n', 'utf8');
+    const guarded = join(tmpDir, 'ssrf-ok.ts');
+    await writeFile(
+      guarded,
+      'assertAllowedHost(req.body.webhookUrl);\nconst r = await fetch(req.body.webhookUrl);\n',
+      'utf8'
+    );
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'ssrf.ts' && x.message.includes('SSRF'))).toBeTruthy();
+    expect(result.findings.find((x) => x.file === 'ssrf-ok.ts' && x.message.includes('SSRF'))).toBeUndefined();
+  });
+
+  it('flags findById on req.params without ownership nearby (BOLA)', async () => {
+    await writeFile(
+      join(tmpDir, 'bola.ts'),
+      'const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id } });\n',
+      'utf8'
+    );
+    const safe = join(tmpDir, 'bola-ok.ts');
+    await writeFile(
+      safe,
+      'const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id, userId: req.user.id } });\n',
+      'utf8'
+    );
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'bola.ts' && x.message.includes('BOLA'))).toBeTruthy();
+    expect(result.findings.find((x) => x.file === 'bola-ok.ts' && x.message.includes('BOLA'))).toBeUndefined();
+  });
+
+  it('flags console.log(req.body) and logger.info({ user }) as privacy findings', async () => {
+    await writeFile(
+      join(tmpDir, 'log.ts'),
+      "console.log('incoming', req.body);\nlogger.info({ user });\n",
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'log.ts' && x.category === 'privacy');
+    expect(f?.severity).toBe('high');
+  });
+
+  it('does not flag logging of scalar fields', async () => {
+    await writeFile(join(tmpDir, 'log-ok.ts'), "console.log('user id', req.user.id);\n", 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'log-ok.ts' && x.category === 'privacy')).toBeUndefined();
+  });
+
+  it('skips taint checks in test files (scanner fixtures)', async () => {
+    await writeFile(join(tmpDir, 'fixture.test.ts'), 'const r = await fetch(req.body.url);\n', 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'fixture.test.ts' && x.category === 'injection')).toBeUndefined();
+  });
+});
+
+describe('scanSecrets — lexical coverage expansion (v0.9)', () => {
+  it('treats mixed-class realistic passwords as REAL (isFakeValue narrowing)', async () => {
+    await writeFile(join(tmpDir, 'prod.ts'), 'const password = "Admin@Prod2026";\n', 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'prod.ts' && x.category === 'secrets');
+    expect(f?.severity).toBe('critical');
+    expect(f?.triage).toBe('real');
+  });
+
+  it('still downgrades obvious placeholder words', async () => {
+    await writeFile(join(tmpDir, 'dev.ts'), 'const password = "my-test-secret";\n', 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'dev.ts' && x.category === 'secrets');
+    expect(f?.severity).toBe('low');
+    expect(f?.triage).toBe('fixture');
+  });
+
+  it('detects backtick literals (GENERIC_VALUE_PATTERNS v0.9)', async () => {
+    await writeFile(join(tmpDir, 'bt.ts'), 'const password = `MyRealPass!2026x`;\n', 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'bt.ts' && x.category === 'secrets');
+    expect(f?.severity).toBe('critical');
+  });
+
+  it('flags mixed template literals as medium (dynamic assembly)', async () => {
+    await writeFile(join(tmpDir, 'tpl.ts'), 'const password = `pass-${role}-word`;\n', 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'tpl.ts');
+    expect(f?.severity).toBe('medium');
+    expect(f?.message).toContain('template literal');
+  });
+
+  it('flags unprefixed high-entropy secrets but not digests', async () => {
+    // Built at runtime so the high-entropy literal never appears in source (gitleaks)
+    const blob = 'Zq8fJ9xK' + 'w2mNpQ7vRt4uLs3hYb6cD5aE';
+    await writeFile(
+      join(tmpDir, 'ent.ts'),
+      `const token = "${blob}";\nconst digest = "${blob}";\n`,
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const token = result.findings.find((x) => x.file === 'ent.ts' && x.message.includes('"token"'));
+    expect(token?.severity).toBe('high');
+    expect(result.findings.find((x) => x.file === 'ent.ts' && x.message.includes('digest'))).toBeUndefined();
+  });
+
+  it('new vendor families: GitHub fine-grained, Telegram, Resend', async () => {
+    const gh = 'github_pat_' + 'A'.repeat(22) + '_' + 'B'.repeat(59);
+    const tg = '1234567890:AA' + 'Hx9kQpLmN4vRtYuIwZsXcDvGbF5aSeRt4uL'.slice(0, 33);
+    const rs = 're_' + 'C'.repeat(36);
+    await writeFile(
+      join(tmpDir, 'vendors.ts'),
+      `const a = "${gh}";\nconst b = "${tg}";\nconst c = "${rs}";\n`,
+      'utf8'
+    );
+    const result = await scanSecrets();
+    const msgs = result.findings.filter((x) => x.file === 'vendors.ts').map((x) => x.message).join(' | ');
+    expect(msgs).toContain('GitHub fine-grained');
+    expect(msgs).toContain('Telegram');
+    expect(msgs).toContain('Resend');
+  });
+
+  it('sk_test_ keys are medium, not critical', async () => {
+    const k = 'sk' + '_test_' + 'abcdefghijklmnopqrstuvwxyz';
+    await writeFile(join(tmpDir, 'stripe.ts'), `const key = "${k}";\n`, 'utf8');
+    const result = await scanSecrets();
+    const f = result.findings.find((x) => x.file === 'stripe.ts');
+    expect(f?.severity).toBe('medium');
+  });
+
+  it('scans Go/Ruby/PHP/Java/C# files for secrets', async () => {
+    const awsKey = 'AKIA' + 'ABCDEFGHIJKLMNOP';
+    await writeFile(join(tmpDir, 'main.go'), `key := "${awsKey}"\n`, 'utf8');
+    await writeFile(join(tmpDir, 'app.rb'), `key = "${awsKey}"\n`, 'utf8');
+    const result = await scanSecrets();
+    expect(result.findings.find((x) => x.file === 'main.go')).toBeTruthy();
+    expect(result.findings.find((x) => x.file === 'app.rb')).toBeTruthy();
   });
 });

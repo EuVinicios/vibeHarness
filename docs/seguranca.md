@@ -89,8 +89,15 @@ ver:
 Se mesmo assim você tiver **arquivos que a auditoria sempre acusa e que você
 sabe serem falsos positivos** (tipicamente: arquivos de teste com chaves
 falsas de propósito), crie um arquivo `.vibe/auditignore` na raiz do projeto —
-mesma sintaxe do `.gitignore` — listando esses caminhos. O `audit` deixa de
-varrer o que estiver lá, sem esconder nada que você não tenha pedido.
+mesma sintaxe do `.gitignore` — listando esses caminhos. Desde a **v0.9**, o
+modelo é de supressão **com contabilidade**:
+
+- O relatório informa quantos findings foram suprimidos e quantas entradas
+  estão sem motivo — prefira o formato inline `path  # motivo`.
+- **Findings críticos** (segredos vendor e credenciais genéricas reais) não
+  são suprimíveis fora de arquivos de teste — o auditignore não é kill-switch.
+- Padrões amplos demais (`**/*`, `src/**`, `**/*.ts`) viram finding **high**
+  em vez de serem honrados em silêncio.
 
 !!! info "Precisão estrutural (v0.8.2)"
     CPF de 11 dígitos só pontua com **checksum válido** (IDs e timestamps
