@@ -37,6 +37,8 @@ export interface ActionResult<T = unknown> {
   pendingQuestions?: QuestionDef[];
   /** Suggested next lifecycle action id. */
   nextStep?: string;
+  /** Suggested prompt to ask the AI assistant in chat. */
+  suggestedPrompt?: string;
   /** Non-fatal notes (warnings, skips). */
   notes?: string[];
 }

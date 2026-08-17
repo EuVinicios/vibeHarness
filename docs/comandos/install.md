@@ -25,18 +25,24 @@ Clientes: `claude-code`, `cursor`, `opencode`, `vscode-copilot`, `windsurf`,
 ## O que o comando escreve
 
 1. **Regras do cliente** — `CLAUDE.md`, `.cursor/rules/vibeharness.mdc`,
-   `AGENTS.md`, `.github/copilot-instructions.md` ou `.windsurfrules`
+   `AGENTS.md`, `.github/copilot-instructions.md` ou `.windsurfrules`.
+   Se o arquivo já existir, o VibeHarness **preserva 100% das regras existentes**
+   e mescla a seção de governança delimitada por `<!-- vibe-harness:start -->`.
 2. **Registro do MCP** — mesclado na config do cliente sem apagar servidores
    existentes (`.mcp.json`, `.cursor/mcp.json`, `opencode.json`,
-   `.vscode/mcp.json`, Windsurf global…)
+   `.vscode/mcp.json`, `.agents/mcp_config.json`, Windsurf global…)
 3. **Extras** — skill e slash commands (Claude Code)
+4. **Painel de Onboarding Visual** — exibe resumo das capacidades MCP ativadas
+   e um prompt pronto para colar no chat da IA.
 
 Depois: **reinicie o cliente e aprove o servidor MCP**. A partir daí a IA usa
 as tools `vibe_*` — veja [Usando com a sua IA](../usando-com-sua-ia.md).
 
-!!! success "Política de escrita segura (v0.8.2)"
-    - **Skip-if-exists por padrão**: regras/extras que já existem são mantidos
-      — use `--force` para sobrescrever de propósito.
+!!! success "Política de escrita segura e mesclagem inteligente"
+    - **Mesclagem inteligente de regras**: arquivos existentes de regras têm seu
+      conteúdo original preservado; o bloco VibeHarness é inserido/atualizado entre
+      marcadores `<!-- vibe-harness:start -->` e `<!-- vibe-harness:end -->`.
+      Use `--force` para sobrescrever o arquivo inteiro.
     - **Config inválida = erro, nunca perda**: se a config do cliente existir
       mas não for JSON válido (ou não for um objeto), o install **falha alto
       sem escrever nada** — nada de substituir sua config por engano.

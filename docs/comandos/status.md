@@ -14,13 +14,13 @@ npx @vibeharness/cli status --json   # mesmo dado em JSON (agentes/CI)
 ## O que aparece
 
 - **Fase inferida** — idea / starting / building / shipping / production
-- **Ciclo de vida** — ✔ concluído, ★ recomendado agora, ○ pendente:
-  `init → prd → plan --apply → pack → audit → doctor`
+- **Jornada do Aplicativo** — esteira visual numerada com status claros:
+  - `✔` Concluído
+  - `★ RECOMENDADO AGORA` — o próximo passo lógico com descrição em linguagem natural
+  - `○` Pendente
+- **Raio-X por Área** — breakdown dos scores (Segurança, Dependências, LGPD, Higiene, Banco, Infra, A11y)
 - **Score** — da última auditoria (cache de 24h em `.vibe/.audit-cache.json`)
-- **Starters pendentes** — se `plan --apply` deixou `.vibe/starters/` sem integrar
-- **Prompt pronto** — a missão do próximo passo com critérios de aceite e as
-  leis da Constitution (ou o prompt de integração dos starters, quando é isso
-  que falta)
+- **Caixa de Ação "O que fazer agora"** — comando exato de terminal e prompt pronto para colar no chat da IA.
 
 ## Modo IA
 

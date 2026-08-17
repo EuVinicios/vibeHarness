@@ -125,24 +125,47 @@ function clustersOf(str: string): Cluster[] {
   return clusters;
 }
 
-/** Hard-wrap a string to a visual width, preserving ANSI escapes. */
+function findLastSpace(clusters: Cluster[]): number {
+  for (let i = clusters.length - 1; i >= 0; i--) {
+    if (clusters[i].text === ' ') return i;
+  }
+  return -1;
+}
+
+/** Word-wrap a string to a visual width, preserving ANSI escapes. */
 export function wrapVisual(str: string, width: number): string[] {
   if (width <= 0) return [str];
   const clusters = clustersOf(str);
   const lines: string[] = [];
-  let current = '';
+  let currentClusters: Cluster[] = [];
   let currentWidth = 0;
+
   for (const c of clusters) {
     if (c.width > 0 && currentWidth + c.width > width) {
-      lines.push(current);
-      current = c.text;
-      currentWidth = c.width;
+      const spaceIdx = findLastSpace(currentClusters);
+      if (spaceIdx > 0) {
+        // Break at the last space on current line
+        const beforeSpace = currentClusters.slice(0, spaceIdx);
+        const afterSpace = currentClusters.slice(spaceIdx + 1);
+        lines.push(beforeSpace.map((cl) => cl.text).join(''));
+        currentClusters = [...afterSpace, c];
+        currentWidth = currentClusters.reduce((acc, cl) => acc + cl.width, 0);
+      } else {
+        // No space on line, hard-break at boundary
+        lines.push(currentClusters.map((cl) => cl.text).join(''));
+        currentClusters = [c];
+        currentWidth = c.width;
+      }
     } else {
-      current += c.text;
+      currentClusters.push(c);
       currentWidth += c.width;
     }
   }
-  lines.push(current);
+
+  if (currentClusters.length > 0) {
+    lines.push(currentClusters.map((cl) => cl.text).join(''));
+  }
+
   return lines;
 }
 

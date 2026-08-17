@@ -27,31 +27,33 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
   const d = result.data;
 
   const header: string[] = [
-    `${icons.shield} VibeHarness · Status — ${chalk.bold(d.project)}`,
-    `Fase: ${stageChip(d.stage)}${d.score ? `  ·  Score: ${scoreChip(d.score.score, d.score.max)} ${gradeChip(d.score.grade)}` : chalk.dim('  ·  Score: — (run audit)')}`,
+    `${icons.shield} VibeHarness · Painel de Saúde — ${chalk.bold.white(d.project)}`,
+    `Fase: ${stageChip(d.stage)}${d.score ? `  ·  Score de Segurança: ${scoreChip(d.score.score, d.score.max)} ${gradeChip(d.score.grade)}` : chalk.dim('  ·  Score: — (não auditado ainda)')}`,
   ];
 
-  console.log('\n' + box(header, { color: chalk.cyan }) + '\n');
+  console.log('\n' + box(header, { color: chalk.cyan, padding: 1 }) + '\n');
 
-  console.log(chalk.bold('🗺️  Ciclo de vida:'));
+  console.log(chalk.bold.cyan('🗺️  Jornada do seu Aplicativo (Ciclo de Vida):'));
   for (const entry of d.lifecycle) {
     const icon = entry.done ? chalk.green('✔') : entry.recommended ? chalk.yellow('★') : chalk.dim('○');
     const label = entry.done
       ? chalk.dim(`${entry.title} — concluído`)
       : entry.recommended
-        ? chalk.bold.yellow(`${entry.title} — recomendado agora`)
+        ? chalk.bold.yellow(`${entry.title} — RECOMENDADO AGORA`)
         : chalk.white(entry.title);
-    console.log(`  ${icon} ${entry.emoji} ${label}`);
-    if (entry.recommended) console.log(chalk.dim(`       ${entry.why}`));
+    console.log(`  ${icon} ${label}`);
+    if (entry.recommended) {
+      console.log(chalk.dim(`     ↳ ${entry.why}`));
+    }
   }
 
   if (d.score?.sections) {
     const meta: Record<string, { emoji: string; name: string }> = {
-      security: { emoji: '🛡️', name: 'Security' },
-      dependencies: { emoji: '📦', name: 'Deps' },
+      security: { emoji: '🛡️', name: 'Segurança' },
+      dependencies: { emoji: '📦', name: 'Dependências' },
       lgpd: { emoji: '🇧🇷', name: 'LGPD' },
-      deadcode: { emoji: '🧹', name: 'Hygiene' },
-      database: { emoji: '🗄️', name: 'DB' },
+      deadcode: { emoji: '🧹', name: 'Higiene' },
+      database: { emoji: '🗄️', name: 'Banco' },
       infra: { emoji: '🏗️', name: 'Infra' },
       accessibility: { emoji: '♿', name: 'A11y' },
     };
@@ -59,38 +61,39 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
       const m = meta[key] ?? { emoji: '•', name: key };
       const full = s.score >= s.max;
       const low = s.max > 0 && s.score / s.max < 0.5;
-      const text = `${m.emoji} ${s.score}/${s.max}`;
+      const text = `${m.emoji} ${m.name}: ${s.score}/${s.max}`;
       return full ? chalk.green(text) : low ? chalk.red(text) : chalk.yellow(text);
     });
-    console.log('\n' + chalk.bold('📊  Auditoria por seção:'));
-    console.log('  ' + chips.join(chalk.dim(' · ')));
+    console.log('\n' + chalk.bold.cyan('📊  Raio-X por Área:'));
+    console.log('  ' + chips.join(chalk.dim('  ·  ')));
   }
 
   if (d.starters.pending) {
-    console.log('\n' + chalk.bold('🧵  Starters pendentes de integração (.vibe/starters/):'));
+    console.log('\n' + chalk.bold.yellow('🧵  Starters pendentes de integração (.vibe/starters/):'));
     for (const step of d.starters.steps) {
       console.log(chalk.yellow(`  ⚠  ${step.name}: ${step.steps.length} passo(s)`));
     }
   }
 
-  if (d.aiPrompt) {
-    console.log('\n' + chalk.bold('📋  Cole isto na sua IA para o próximo passo:'));
+  const recEntry = d.lifecycle.find((e) => e.recommended);
+  if (recEntry && d.aiPrompt) {
+    const actionLines: string[] = [
+      `${chalk.bold.yellow('🎯 Ação:')} ${chalk.bold.white(recEntry.title)}`,
+      `${chalk.dim('   ' + recEntry.why)}`,
+      '',
+      `${chalk.bold.cyan('💬 No chat da sua IA (Copie e Envie):')}`,
+      `   ${chalk.bold.yellow('"' + d.aiPrompt.split('\n')[0] + '"')}`,
+      '',
+      `${chalk.bold.cyan('💻 No Terminal (Comando Direto):')}`,
+      `   ${chalk.white(recEntry.command)}`,
+    ];
+
+    console.log('\n' + box(actionLines, { title: '👉 O QUE FAZER AGORA', color: chalk.yellow, padding: 1 }) + '\n');
+  } else if (!d.nextAction) {
     console.log(
-      box(d.aiPrompt.split('\n').slice(0, 8).map((l) => chalk.dim(l)), {
-        title: 'Prompt pronto',
-        color: chalk.cyanBright,
-      })
-    );
-    const total = d.aiPrompt.split('\n').length;
-    if (total > 8) console.log(chalk.dim(`  (+${total - 8} linhas — prompt completo em modo JSON: vibe-harness status --json)`));
-    console.log(
-      chalk.dim('  Melhor ainda: rode `npx @vibeharness/cli install` e sua IA faz tudo via MCP.\n')
-    );
-  } else {
-    console.log(
-      chalk.bold.green('\n✅  Ciclo completo — projeto pronto. Mantenha em dia com `npx @vibeharness/cli doctor`.\n')
+      chalk.bold.green('\n✅  Ciclo completo — seu projeto está pronto para produção e protegido!\n')
     );
   }
 
-  console.log(chalk.dim(`  ${colors.dim('Comandos:')} status --json · install · init · prd · plan --apply · pack · audit --report · doctor --fix\n`));
+  console.log(chalk.dim(`  ${colors.dim('Comandos úteis:')} status · install · init · prd · plan --apply · pack · audit --site · doctor --fix\n`));
 }

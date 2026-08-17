@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2026-08-16 — "Experiência do Usuário & Vibecoding: Onboarding Visual, Mesclagem Inteligente de Regras e IA Proativa"
+
+Aprimoramento completo da experiência de onboarding para vibecoders (não-programadores) e agentes de IA. Suíte expandida para 343 testes (31 suites) 100% passando. Score de prontidão: 96/100 (grade A).
+
+### Added
+
+- **Painel Visual de Boas-Vindas (`install`):** ao rodar `install`, o usuário recebe um cartão de boas-vindas formatado explicando o papel do VibeHarness, as ferramentas MCP ativadas e duas opções claras de ação (prompt pronto para colar no chat da IA e comandos diretos para o terminal).
+- **Esteira Visual de Ciclo de Vida (`status`):** jornada do projeto em 6 passos numerados com indicadores visuais (`✔`, `★ RECOMENDADO AGORA`, `○`), raio-x por áreas e caixa de destaque com comando e prompt cirúrgico.
+- **Mesclagem Inteligente de Regras (`AGENTS.md` / `CLAUDE.md`):** regras existentes do usuário são 100% preservadas e o bloco VibeHarness é inserido/atualizado entre marcadores `<!-- vibe-harness:start -->` e `<!-- vibe-harness:end -->` com garantia de idempotência.
+- **Diretivas Proativas para Agentes de IA:** `AGENTS.md`, `SKILL.md` e servidor MCP instruem a IA a rodar status/audit proativamente, explicar achados em linguagem simples e oferecer correções automáticas.
+- **Contrato Estruturado em `ActionResult`:** `installAction`, `statusAction`, `initAction` e `auditAction` passam a retornar `nextStep` e `suggestedPrompt` para consumo por agentes e CI.
+- **Quebra Inteligente de Linhas por Palavra (`wrapVisual`):** o layout engine agora preserva palavras completas em quebras visuais de caixas ANSI e UTF-8.
+
 ## [0.8.4] - 2026-08-16 — "Dogfooding: o harness auditado por ele mesmo"
 
 Frutos de uma sessão real do VibeHarness rodando sobre o próprio repo

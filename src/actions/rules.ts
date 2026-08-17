@@ -8,6 +8,8 @@ import {
   claudeMdTemplate,
   windsurfRulesTemplate,
   copilotInstructionsTemplate,
+  mergeRulesContent,
+  wrapVibeHarnessBlock,
 } from '../generators/rules.js';
 import type { ActionResult } from './types.js';
 
@@ -67,12 +69,30 @@ export async function rulesAction(opts: RulesActionOptions = {}): Promise<Action
     .filter(Boolean);
 
   const root = projectRoot();
-  const write = (rel: string, content: string): Promise<boolean> =>
-    writeFileSafe(join(root, rel), content, { overwrite: opts.force === true, quiet: true });
-
   const outputs: string[] = [];
   const track = async (rel: string, content: string): Promise<void> => {
-    if (await write(rel, content)) outputs.push(rel);
+    const target = join(root, rel);
+    if (opts.force) {
+      if (await writeFileSafe(target, wrapVibeHarnessBlock(content) + '\n', { overwrite: true, quiet: true })) {
+        outputs.push(rel);
+      }
+    } else if (existsSync(target)) {
+      try {
+        const existing = await readFile(target, 'utf8');
+        const merged = mergeRulesContent(existing, content);
+        if (existing !== merged) {
+          if (await writeFileSafe(target, merged, { overwrite: true, quiet: true })) {
+            outputs.push(rel);
+          }
+        }
+      } catch {
+        // skip
+      }
+    } else {
+      if (await writeFileSafe(target, wrapVibeHarnessBlock(content) + '\n', { overwrite: false, quiet: true })) {
+        outputs.push(rel);
+      }
+    }
   };
 
   if (tools.includes('cursor')) {
