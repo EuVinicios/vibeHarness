@@ -27,3 +27,6 @@ pages-staging/
 
 # local AI agent state (plans, subagent transcripts) — never version it
 .qwen/
+
+# vibe-harness backup files
+*.vibe-bak

@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "vibe-harness": {
+      "type": "local",
+      "command": [
+        "node",
+        "./dist/cli.js",
+        "mcp"
+      ],
+      "enabled": true
+    }
+  }
+}

@@ -162,6 +162,8 @@ describe('statusAction', () => {
 
     const status = await statusAction();
     expect(status.ok).toBe(true);
+    expect(status.data.deliverables).toBeDefined();
+    expect(status.data.deliverables.find((d) => d.id === 'prd')?.done).toBe(true);
     expect(status.data.starters.pending).toBe(true);
     expect(status.data.starters.steps[0].steps).toEqual([
       'Copy the schema starter',

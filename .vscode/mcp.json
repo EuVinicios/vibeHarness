@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "vibe-harness": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./dist/cli.js",
+        "mcp"
+      ]
+    }
+  }
+}

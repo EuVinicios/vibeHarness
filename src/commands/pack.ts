@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { packAction } from '../actions/pack.js';
 import { banner } from '../utils/fs.js';
 import { box } from '../ui/box.js';
+import { renderNextStepBox } from '../ui/next-step.js';
 import { colors, icons } from '../ui/theme.js';
 import { printJson, withStderrConsole } from '../utils/headless.js';
 
@@ -44,8 +45,14 @@ export async function packCommand(opts: PackOptions): Promise<void> {
 
   for (const note of result.notes ?? []) console.log(chalk.yellow(`  ⚠  ${note}\n`));
 
+  console.log(chalk.bold.green('  ✅  Contexto gerado com sucesso!\n'));
   console.log(
-    chalk.bold.green('  ✅  Context ready!') +
-      chalk.dim(`\n  Paste ${d.outputPath} into your AI assistant or attach as context.\n`)
+    renderNextStepBox({
+      currentActionSummary: `Contexto do projeto empacotado em ${d.outputPath} (${d.fileCount} arquivos, ${sizeKB} KB)`,
+      nextStepTitle: '5. Auditoria de Prontidão & Segurança',
+      nextStepDescription: 'Avalia vulnerabilidades, vazamento de senhas, conformidade LGPD e gera relatório visual em HTML.',
+      chatPrompt: 'Chat, execute a auditoria de prontidão e segurança do VibeHarness (vibe_audit com site: true).',
+      cliCommand: 'npx @vibeharness/cli audit --site',
+    }) + '\n'
   );
 }

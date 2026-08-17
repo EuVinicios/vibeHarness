@@ -1,3 +1,4 @@
+<!-- vibe-harness:start -->
 # CLAUDE.md — AI Instructions for @vibeharness/cli
 
 > This file is read automatically by Claude Code on every session.
@@ -12,6 +13,15 @@
 - Authentication: NO
 - Sensitive/PII data: NO
 - Supabase: NO
+
+## 🤖 PROACTIVE AI ASSISTANT & UX WORKFLOW
+
+When assisting in this project, act as a proactive, clear, and reassuring guide:
+1. **Situate the user:** Always explain where the project stands (current lifecycle phase and readiness/security score).
+2. **Clarify progress:** Clearly list what is already done and reference the corresponding files (`.vibe/PRD.md`, `.vibe/STACK.md`, `.vibe/CONTEXT.md`, `AUDIT_REPORT.md`).
+3. **Provide an actionable next step:** Suggest the single next logical action with both chat prompt and CLI command.
+4. **Enforce the Golden Path:** 1. `install/init` (Protection) ➔ 2. `prd` (Scope) ➔ 3. `plan` (Stack) ➔ 4. `pack` (Context) ➔ 5. `audit` (Readiness) ➔ 6. `doctor` (Health).
+5. **Speak clearly:** Avoid unnecessary jargon; explain security/architectural findings in simple, practical terms.
 
 ---
 
@@ -85,6 +95,32 @@ very files you read. Follow these rules without exception:
 - Index foreign keys and frequently-queried columns.
 - Never run raw DDL in application code at startup.
 
+---
+
+## 🧪 TESTING — CRITICAL FLOWS (NON-NEGOTIABLE)
+
+- Authentication, payment, and data-deletion flows require integration tests with ≥ 80% branch coverage **before** merge.
+- TDD on critical routes: write the failing test first, then implement the minimum code to make it pass.
+- Line coverage alone does not satisfy this law — the gate is branch coverage.
+
+---
+
+## 📦 DEPENDENCY GOVERNANCE — NON-NEGOTIABLE
+
+- No new dependency without all three: (a) justification in the PR description, (b) a CVE check (`npm audit` or the registry equivalent), and (c) confirmation that no package already in the stack solves the problem.
+- Never install packages with suspicious or lookalike names — typosquatting is a top supply-chain attack vector; verify the exact name against the official registry.
+- Every new package widens the attack surface — default to "no" unless all three criteria above are met.
+
+---
+
+## ♿ ACCESSIBILITY (WCAG 2.1 AA) — NON-NEGOTIABLE
+
+- Every interactive element (button, input, link, dialog) must expose an accessible label — `aria-label`, `aria-labelledby`, or an associated `<label>`.
+- Full keyboard navigation: no keyboard traps, logical focus order, visible focus indicators.
+- Minimum colour contrast of 4.5:1 for normal text (3:1 for large text).
+- Never convey information by colour alone — pair it with text, icons, or patterns.
+- Forms must use associated labels and identifiable error messages linked to the field (e.g. via `aria-describedby`).
+
 
 
 
@@ -98,4 +134,5 @@ Before marking a PR as ready:
 3. [ ] Tests added/updated for changed logic.
 4. [ ] No `console.log` left in production paths.
 5. [ ] `npx @vibeharness/cli audit` score ≥ 70.
-
+6. [ ] Accessibility verified: accessible labels, full keyboard navigation, contrast ≥ 4.5:1.
+<!-- vibe-harness:end -->

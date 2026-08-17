@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { initAction } from '../actions/init.js';
 import { THREAT_MODEL_QUESTIONS, coerceThreatModel } from '../actions/questions.js';
 import { askQuestions } from '../ui/prompt.js';
+import { renderNextStepBox } from '../ui/next-step.js';
 import { banner, detectStack } from '../utils/fs.js';
 import { printJson, withStderrConsole } from '../utils/headless.js';
 
@@ -51,13 +52,14 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   }
   for (const note of result.notes ?? []) console.log(chalk.dim(`  ·  ${note}`));
 
-  console.log('\n' + chalk.bold.green('✅  VibeHarness initialised!'));
-  console.log(chalk.dim([
-    '',
-    '  Next steps:',
-    '    npx @vibeharness/cli prd    → write the product requirements',
-    '    npx @vibeharness/cli plan   → curated stack recommendation',
-    '    npx @vibeharness/cli pack   → build sanitised context for AI',
-    '    npx @vibeharness/cli audit  → run production readiness check',
-  ].join('\n') + '\n'));
+  console.log('\n' + chalk.bold.green('✅  Fundação do VibeHarness inicializada com sucesso!\n'));
+  console.log(
+    renderNextStepBox({
+      currentActionSummary: 'Fundação criada: .vibe/ (SPEC.md, CONSTITUTION.md), regras de IA e pre-commit hook de proteção',
+      nextStepTitle: '2. Especificação do Produto (.vibe/PRD.md)',
+      nextStepDescription: 'Defina a visão, público-alvo e recursos essenciais para guiar sua IA sem desvios.',
+      chatPrompt: 'Chat, vamos criar a especificação do produto (.vibe/PRD.md) usando o VibeHarness.',
+      cliCommand: 'npx @vibeharness/cli prd',
+    }) + '\n'
+  );
 }
