@@ -25,11 +25,20 @@ export interface LifecycleEntry {
   recommended: boolean;
 }
 
+export interface Deliverable {
+  id: string;
+  name: string;
+  file: string;
+  done: boolean;
+  category: 'foundation' | 'product' | 'architecture' | 'context' | 'audit' | 'maintenance';
+}
+
 export interface StatusActionData {
   project: string;
   stage: Stage;
   state: ProjectState;
   lifecycle: LifecycleEntry[];
+  deliverables: Deliverable[];
   nextAction: ActionId | null;
   score: ScoreCache | null;
   starters: StartersStatus & { files: string[] };
@@ -100,6 +109,72 @@ export async function statusAction(): Promise<ActionResult<StatusActionData>> {
     recommended: id === next,
   }));
 
+  const deliverables: Deliverable[] = [
+    {
+      id: 'spec',
+      name: 'Fundação & Especificação Técnica',
+      file: '.vibe/SPEC.md',
+      done: state.hasSpec,
+      category: 'foundation',
+    },
+    {
+      id: 'constitution',
+      name: 'Constituição & Não-Negociáveis',
+      file: '.vibe/CONSTITUTION.md',
+      done: state.hasSpec,
+      category: 'foundation',
+    },
+    {
+      id: 'pre-commit',
+      name: 'Bloqueador de Segredos no Git',
+      file: '.git/hooks/pre-commit',
+      done: state.hasPreCommit,
+      category: 'foundation',
+    },
+    {
+      id: 'rules',
+      name: 'Regras de IA & Instruções',
+      file: 'CLAUDE.md / .cursorrules / AGENTS.md',
+      done: state.hasRules,
+      category: 'foundation',
+    },
+    {
+      id: 'prd',
+      name: 'Especificação do Produto (PRD)',
+      file: '.vibe/PRD.md',
+      done: state.hasPrd,
+      category: 'product',
+    },
+    {
+      id: 'stack',
+      name: 'Stack Técnica & Arquitetura',
+      file: '.vibe/STACK.md',
+      done: state.hasStack,
+      category: 'architecture',
+    },
+    {
+      id: 'context',
+      name: 'Contexto Sanitizado para IA',
+      file: '.vibe/CONTEXT.md',
+      done: state.hasContext,
+      category: 'context',
+    },
+    {
+      id: 'audit',
+      name: 'Relatório de Auditoria de Prontidão',
+      file: 'AUDIT_REPORT.md',
+      done: state.hasAuditReport,
+      category: 'audit',
+    },
+    {
+      id: 'dependabot',
+      name: 'Automação de Dependências',
+      file: '.github/dependabot.yml',
+      done: state.hasDependabot,
+      category: 'maintenance',
+    },
+  ];
+
   // The AI prompt CTA: when starters are pending wiring, that outranks the
   // next lifecycle action — closing the apply loop comes first. The steps
   // come from .vibe/starters/README.md, which the user/AI may have edited —
@@ -135,6 +210,7 @@ export async function statusAction(): Promise<ActionResult<StatusActionData>> {
       stage,
       state,
       lifecycle,
+      deliverables,
       nextAction: next,
       score,
       starters: { ...starters, files: starterFiles },

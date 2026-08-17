@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { prdAction } from '../actions/prd.js';
 import { PRD_QUESTIONS } from '../actions/questions.js';
 import { askQuestions } from '../ui/prompt.js';
+import { renderNextStepBox } from '../ui/next-step.js';
 import { banner } from '../utils/fs.js';
 import { printJson, withStderrConsole } from '../utils/headless.js';
 
@@ -35,15 +36,25 @@ export async function prdCommand(opts: PrdOptions): Promise<void> {
   const result = await prdAction({ answers, force: opts.force });
 
   if (result.data.written) {
-    console.log(chalk.green('  ✔  Written: .vibe/PRD.md'));
-    console.log(chalk.dim([
-      '',
-      '  Next steps:',
-      '    1. Fill the placeholder sections in .vibe/PRD.md',
-      '    2. npx @vibeharness/cli plan   → curated stack recommendation',
-      '    3. npx @vibeharness/cli pack   → sanitised context for your AI assistant',
-    ].join('\n') + '\n'));
+    console.log(chalk.bold.green('  ✔  Especificação do Produto salva: .vibe/PRD.md\n'));
+    console.log(
+      renderNextStepBox({
+        currentActionSummary: 'Especificação do produto gerada em .vibe/PRD.md',
+        nextStepTitle: '3. Stack & Arquitetura (.vibe/STACK.md)',
+        nextStepDescription: 'Recomenda a stack ideal e instala configurações seguras no seu projeto.',
+        chatPrompt: 'Chat, recomende e aplique a melhor stack técnica para o projeto (vibe_plan com apply: true).',
+        cliCommand: 'npx @vibeharness/cli plan --apply',
+      }) + '\n'
+    );
   } else {
-    console.log(chalk.yellow('  ⚠  .vibe/PRD.md already exists — skipped (use --force to overwrite).'));
+    console.log(chalk.yellow('  ⚠  .vibe/PRD.md já existe — ignorado (use --force para sobrescrever).\n'));
+    console.log(
+      renderNextStepBox({
+        nextStepTitle: '3. Stack & Arquitetura (.vibe/STACK.md)',
+        nextStepDescription: 'Recomenda a stack ideal e instala configurações seguras no seu projeto.',
+        chatPrompt: 'Chat, recomende e aplique a melhor stack técnica para o projeto (vibe_plan com apply: true).',
+        cliCommand: 'npx @vibeharness/cli plan --apply',
+      }) + '\n'
+    );
   }
 }

@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { doctorAction } from '../actions/doctor.js';
 import { banner } from '../utils/fs.js';
+import { renderNextStepBox } from '../ui/next-step.js';
 import { printJson, withStderrConsole } from '../utils/headless.js';
 
 interface DoctorOptions {
@@ -47,9 +48,18 @@ export async function doctorCommand(opts: DoctorOptions): Promise<void> {
 
   console.log('');
   if (result.data.issues === 0) {
-    console.log(chalk.bold.green('✅  Doctor found no maintenance issues.'));
+    console.log(chalk.bold.green('✅  Doctor: Tudo em ordem! Nenhuma pendência de manutenção encontrada.\n'));
   } else {
-    console.log(chalk.bold.yellow(`🩺  Doctor found ${result.data.issues} maintenance issue(s) — see above.`));
+    console.log(chalk.bold.yellow(`🩺  Doctor encontrou ${result.data.issues} item(ns) de atenção — veja acima.\n`));
   }
-  console.log('');
+
+  console.log(
+    renderNextStepBox({
+      currentActionSummary: 'Checagem de saúde e dependências concluída',
+      nextStepTitle: 'Ver Painel de Saúde do Projeto',
+      nextStepDescription: 'Acompanhe o score de segurança e o ciclo contínuo de desenvolvimento.',
+      chatPrompt: 'Chat, execute o vibe_status para me mostrar o painel completo do projeto.',
+      cliCommand: 'npx @vibeharness/cli status',
+    }) + '\n'
+  );
 }

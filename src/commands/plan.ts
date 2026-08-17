@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { planAction } from '../actions/plan.js';
 import { PROJECT_TYPE_QUESTION } from '../actions/questions.js';
 import { askQuestions, confirm } from '../ui/prompt.js';
+import { renderNextStepBox } from '../ui/next-step.js';
 import { banner } from '../utils/fs.js';
 import { printJson, withStderrConsole } from '../utils/headless.js';
 
@@ -76,22 +77,45 @@ export async function planCommand(opts: PlanOptions): Promise<void> {
   for (const note of result.notes ?? []) console.log(chalk.yellow(`  ⚠  ${note}`));
 
   if (result.data.planItems.length > 0 && !opts.apply) {
-    console.log(chalk.dim('\n  Ready to apply:'));
+    console.log(chalk.dim('\n  Itens prontos para aplicar:'));
     for (const item of result.data.planItems) {
       console.log(`    ${item.category.padEnd(11)} ${item.name} — ${item.action}`);
     }
-    console.log(chalk.dim('\n  Apply with: npx @vibeharness/cli plan --apply\n'));
-  }
-
-  if (opts.apply && (result.data.wiringInstructions?.length ?? 0) > 0) {
-    console.log('\n' + chalk.bold('🧵  Wiring instructions written to .vibe/starters/README.md:'));
+    console.log('');
+    console.log(
+      renderNextStepBox({
+        currentActionSummary: 'Recomendação de stack gerada (.vibe/STACK.md)',
+        nextStepTitle: 'Aplicar a Stack Técnica',
+        nextStepDescription: 'Instala dependências e gera as configurações seguras dos starters.',
+        chatPrompt: 'Chat, aplique o plano de stack técnica (vibe_plan com apply: true).',
+        cliCommand: 'npx @vibeharness/cli plan --apply',
+      }) + '\n'
+    );
+  } else if (opts.apply && (result.data.wiringInstructions?.length ?? 0) > 0) {
+    console.log('\n' + chalk.bold('🧵  Instruções de integração escritas em .vibe/starters/README.md:'));
     for (const step of result.data.wiringInstructions ?? []) {
       console.log(chalk.dim(`    - ${step}`));
     }
+    console.log('');
     console.log(
-      chalk.bold.cyan(
-        '\n  👉 Ask your AI assistant to "wire the VibeHarness starters" — it will integrate them with your consent.\n'
-      )
+      renderNextStepBox({
+        currentActionSummary: 'Stack aplicada e starters gerados em .vibe/starters/',
+        nextStepTitle: '4. Contexto Otimizado para IA (.vibe/CONTEXT.md)',
+        nextStepDescription: 'Gera um pacote limpo e sanitizado do projeto para a IA ter visão global.',
+        chatPrompt: 'Chat, integre os starters do VibeHarness e depois empacote o contexto (.vibe/CONTEXT.md).',
+        cliCommand: 'npx @vibeharness/cli pack',
+      }) + '\n'
+    );
+  } else {
+    console.log('');
+    console.log(
+      renderNextStepBox({
+        currentActionSummary: 'Stack definida em .vibe/STACK.md',
+        nextStepTitle: '4. Contexto Otimizado para IA (.vibe/CONTEXT.md)',
+        nextStepDescription: 'Empacota o projeto em formato limpo, com senhas e dados confidenciais redigidos.',
+        chatPrompt: 'Chat, empacote o contexto do projeto usando o vibe_pack.',
+        cliCommand: 'npx @vibeharness/cli pack',
+      }) + '\n'
     );
   }
 }

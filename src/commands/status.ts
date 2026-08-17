@@ -3,6 +3,7 @@ import { statusAction } from '../actions/status.js';
 import { banner } from '../utils/fs.js';
 import { box } from '../ui/box.js';
 import { colors, icons, gradeChip, scoreChip, stageChip } from '../ui/theme.js';
+import { renderNextStepBox, renderContinuousWorkflowBox } from '../ui/next-step.js';
 import { printJson, withStderrConsole } from '../utils/headless.js';
 
 interface StatusOptions {
@@ -10,9 +11,9 @@ interface StatusOptions {
 }
 
 /**
- * The non-interactive cockpit (v0.7): renders where the project stands and
- * hands the user a ready-to-paste prompt for their AI client. The terminal
- * is optional — the same data drives the MCP vibe_status tool.
+ * The non-interactive cockpit (v0.8+): renders where the project stands,
+ * what has already been built, the standard golden path, and hands the user
+ * a crystal-clear immediate next step for their AI client and terminal.
  */
 export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
   if (opts.json) {
@@ -26,6 +27,7 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
   const result = await withStderrConsole(() => statusAction());
   const d = result.data;
 
+  // 1. Cockpit Header Box
   const header: string[] = [
     `${icons.shield} VibeHarness · Painel de Saúde — ${chalk.bold.white(d.project)}`,
     `Fase: ${stageChip(d.stage)}${d.score ? `  ·  Score de Segurança: ${scoreChip(d.score.score, d.score.max)} ${gradeChip(d.score.grade)}` : chalk.dim('  ·  Score: — (não auditado ainda)')}`,
@@ -33,7 +35,35 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
 
   console.log('\n' + box(header, { color: chalk.cyan, padding: 1 }) + '\n');
 
-  console.log(chalk.bold.cyan('🗺️  Jornada do seu Aplicativo (Ciclo de Vida):'));
+  // 2. Trilha Padrão (Golden Path visual summary)
+  console.log(chalk.bold.cyan('🧭  Trilha Padrão do VibeHarness (Golden Path):'));
+  console.log(
+    chalk.dim('   ') +
+    [
+      chalk.green('1. Proteção'),
+      chalk.green('2. Escopo (PRD)'),
+      chalk.green('3. Stack'),
+      chalk.green('4. Contexto IA'),
+      chalk.green('5. Auditoria'),
+      chalk.green('6. Saúde'),
+    ].join(chalk.dim(' ➔ ')) +
+    '\n'
+  );
+
+  // 3. O que já está pronto no projeto
+  const readyDeliverables = d.deliverables.filter((del) => del.done);
+  console.log(chalk.bold.cyan('📦  O que já foi feito no seu projeto:'));
+  if (readyDeliverables.length === 0) {
+    console.log(chalk.dim('   Nenhum artefato configurado ainda — comece com a etapa de proteção.\n'));
+  } else {
+    for (const del of readyDeliverables) {
+      console.log(`   ${chalk.green('✔')} ${chalk.bold.white(del.name)} ${chalk.dim(`(${del.file})`)}`);
+    }
+    console.log('');
+  }
+
+  // 4. Ciclo de Vida detalhado
+  console.log(chalk.bold.cyan('🗺️  Etapas do Ciclo de Vida:'));
   for (const entry of d.lifecycle) {
     const icon = entry.done ? chalk.green('✔') : entry.recommended ? chalk.yellow('★') : chalk.dim('○');
     const label = entry.done
@@ -47,6 +77,7 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
     }
   }
 
+  // 5. Raio-X por Área (Scorecard técnico)
   if (d.score?.sections) {
     const meta: Record<string, { emoji: string; name: string }> = {
       security: { emoji: '🛡️', name: 'Segurança' },
@@ -68,6 +99,7 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
     console.log('  ' + chips.join(chalk.dim('  ·  ')));
   }
 
+  // 6. Starters pendentes
   if (d.starters.pending) {
     console.log('\n' + chalk.bold.yellow('🧵  Starters pendentes de integração (.vibe/starters/):'));
     for (const step of d.starters.steps) {
@@ -75,25 +107,24 @@ export async function statusCommand(opts: StatusOptions = {}): Promise<void> {
     }
   }
 
+  // 7. Próximo Passo Imediato OU Fluxo Contínuo
   const recEntry = d.lifecycle.find((e) => e.recommended);
   if (recEntry && d.aiPrompt) {
-    const actionLines: string[] = [
-      `${chalk.bold.yellow('🎯 Ação:')} ${chalk.bold.white(recEntry.title)}`,
-      `${chalk.dim('   ' + recEntry.why)}`,
-      '',
-      `${chalk.bold.cyan('💬 No chat da sua IA (Copie e Envie):')}`,
-      `   ${chalk.bold.yellow('"' + d.aiPrompt.split('\n')[0] + '"')}`,
-      '',
-      `${chalk.bold.cyan('💻 No Terminal (Comando Direto):')}`,
-      `   ${chalk.white(recEntry.command)}`,
-    ];
-
-    console.log('\n' + box(actionLines, { title: '👉 O QUE FAZER AGORA', color: chalk.yellow, padding: 1 }) + '\n');
-  } else if (!d.nextAction) {
     console.log(
-      chalk.bold.green('\n✅  Ciclo completo — seu projeto está pronto para produção e protegido!\n')
+      '\n' +
+      renderNextStepBox({
+        nextStepTitle: recEntry.title,
+        nextStepDescription: recEntry.why,
+        chatPrompt: d.aiPrompt.split('\n')[0],
+        cliCommand: recEntry.command,
+        showStatusHint: false,
+      }) +
+      '\n'
     );
+  } else if (!d.nextAction) {
+    console.log('\n' + renderContinuousWorkflowBox() + '\n');
   }
 
-  console.log(chalk.dim(`  ${colors.dim('Comandos úteis:')} status · install · init · prd · plan --apply · pack · audit --site · doctor --fix\n`));
+  console.log(chalk.dim(`  ${colors.dim('Comandos rápidos:')} status · install · init · prd · plan --apply · pack · audit --site · doctor --fix\n`));
 }
+

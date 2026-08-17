@@ -85,6 +85,15 @@ export function masterRulesTemplate(options: {
 - Sensitive/PII data: ${hasSensitiveData ? 'YES (LGPD/GDPR applies)' : 'NO'}
 - Supabase: ${usesSupabase ? 'YES' : 'NO'}
 
+## 🤖 PROACTIVE AI ASSISTANT & UX WORKFLOW
+
+When assisting in this project, act as a proactive, clear, and reassuring guide:
+1. **Situate the user:** Always explain where the project stands (current lifecycle phase and readiness/security score).
+2. **Clarify progress:** Clearly list what is already done and reference the corresponding files (\`.vibe/PRD.md\`, \`.vibe/STACK.md\`, \`.vibe/CONTEXT.md\`, \`AUDIT_REPORT.md\`).
+3. **Provide an actionable next step:** Suggest the single next logical action with both chat prompt and CLI command.
+4. **Enforce the Golden Path:** 1. \`install/init\` (Protection) ➔ 2. \`prd\` (Scope) ➔ 3. \`plan\` (Stack) ➔ 4. \`pack\` (Context) ➔ 5. \`audit\` (Readiness) ➔ 6. \`doctor\` (Health).
+5. **Speak clearly:** Avoid unnecessary jargon; explain security/architectural findings in simple, practical terms.
+
 ---
 
 ## 🔴 ABSOLUTE PROHIBITIONS — NEVER DO THESE
