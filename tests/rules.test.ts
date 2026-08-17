@@ -1,4 +1,4 @@
-import { masterRulesTemplate, claudeMdTemplate } from '../src/generators/rules.js';
+import { masterRulesTemplate, claudeMdTemplate, wrapVibeHarnessBlock, mergeRulesContent } from '../src/generators/rules.js';
 
 describe('masterRulesTemplate — constitution laws (minimal input)', () => {
   const rules = masterRulesTemplate({
@@ -84,5 +84,32 @@ describe('masterRulesTemplate — untrusted name/stack flattening (v0.8.3)', () 
     const md = claudeMdTemplate('BODY', 'evil\rinjected: true');
     expect(md).not.toContain('\r');
     expect(md.split('\n')[0]).toBe('# CLAUDE.md — AI Instructions for evil injected: true');
+  });
+});
+
+describe('mergeRulesContent — intelligent rules injection', () => {
+  it('wraps new rules in start and end markers', () => {
+    const wrapped = wrapVibeHarnessBlock('test rules');
+    expect(wrapped).toContain('<!-- vibe-harness:start -->');
+    expect(wrapped).toContain('test rules');
+    expect(wrapped).toContain('<!-- vibe-harness:end -->');
+  });
+
+  it('appends wrapped rules to existing content without clobbering user rules', () => {
+    const existing = '# User Custom Rules\n- Rule 1\n- Rule 2';
+    const merged = mergeRulesContent(existing, '# Vibe Rules');
+    expect(merged).toContain('# User Custom Rules\n- Rule 1\n- Rule 2');
+    expect(merged).toContain('<!-- vibe-harness:start -->');
+    expect(merged).toContain('# Vibe Rules');
+    expect(merged).toContain('<!-- vibe-harness:end -->');
+  });
+
+  it('replaces only the vibe-harness block when markers already exist', () => {
+    const existing = '# Header\n\n<!-- vibe-harness:start -->\n# Old Vibe Rules\n<!-- vibe-harness:end -->\n\n# Footer';
+    const merged = mergeRulesContent(existing, '# Updated Vibe Rules');
+    expect(merged).toContain('# Header');
+    expect(merged).toContain('# Footer');
+    expect(merged).toContain('# Updated Vibe Rules');
+    expect(merged).not.toContain('# Old Vibe Rules');
   });
 });

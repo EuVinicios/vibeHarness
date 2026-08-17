@@ -24,6 +24,8 @@ import {
   claudeMdTemplate,
   copilotInstructionsTemplate,
   windsurfRulesTemplate,
+  mergeRulesContent,
+  wrapVibeHarnessBlock,
 } from '../generators/rules.js';
 import {
   skillMdTemplate,
@@ -306,12 +308,39 @@ async function installOne(
 ): Promise<void> {
   const rulesContent = await buildRulesContent(client);
   const rulesSymlinkedDir = await hasSymlinkedAncestorSegment(anchorFor(client.rules.path), client.rules.path);
-  const rulesWritten = rulesSymlinkedDir
-    ? false
-    : await writeFileSafe(resolveTargetPath(client.rules.path), rulesContent, {
-        overwrite: force,
+  const rulesTarget = resolveTargetPath(client.rules.path);
+
+  let rulesWritten = false;
+  if (rulesSymlinkedDir) {
+    // skip write if directory segment is symlinked
+  } else if (force) {
+    rulesWritten = await writeFileSafe(rulesTarget, wrapVibeHarnessBlock(rulesContent) + '\n', {
+      overwrite: true,
+      quiet: true,
+    });
+  } else if (existsSync(rulesTarget)) {
+    try {
+      const existing = await readFile(rulesTarget, 'utf8');
+      const merged = mergeRulesContent(existing, rulesContent);
+      rulesWritten = await writeFileSafe(rulesTarget, merged, {
+        overwrite: true,
         quiet: true,
       });
+      if (rulesWritten) {
+        notes.push(
+          `${client.name}: ${client.rules.path} updated (VibeHarness guardrails merged while preserving existing rules)`
+        );
+      }
+    } catch {
+      rulesWritten = false;
+    }
+  } else {
+    rulesWritten = await writeFileSafe(rulesTarget, wrapVibeHarnessBlock(rulesContent) + '\n', {
+      overwrite: false,
+      quiet: true,
+    });
+  }
+
   if (rulesWritten) {
     outputs.push(client.rules.path);
   } else {
@@ -477,7 +506,7 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
       ok,
       action: 'install',
       summary: ok
-        ? `${targets.length > 1 ? `${targets.length} clients` : names} configured. Restart each client, approve the MCP server, then ask it to "run vibe status".`
+        ? `${targets.length > 1 ? `${targets.length} clients` : names} configured. VibeHarness is active! Run "vibe status" or ask your AI to inspect project health.`
         : `${errors.length} of ${targets.length} client(s) failed: ${errors.join(' | ')}`,
       data: {
         installed: installedIds,
@@ -487,6 +516,10 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
         errors,
       },
       outputs,
+      nextStep: ok ? 'status' : undefined,
+      suggestedPrompt: ok
+        ? 'Por favor, execute o vibe_status e a auditoria do VibeHarness (vibe_audit) para analisar a segurança, LGPD e prontidão para produção da aplicação.'
+        : undefined,
       notes,
     };
   }
@@ -512,7 +545,7 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
     return {
       ok: true,
       action: 'install',
-      summary: `${detected[0].name} configured. Restart the client, approve the MCP server, then ask it to "run vibe status".`,
+      summary: `${detected[0].name} configured. VibeHarness is active! Run "vibe status" or ask your AI to inspect project health.`,
       data: {
         installed: [detected[0].id],
         detected: detectedIds,
@@ -521,6 +554,9 @@ export async function installAction(opts: InstallActionOptions = {}): Promise<Ac
         errors: [],
       },
       outputs,
+      nextStep: 'status',
+      suggestedPrompt:
+        'Por favor, execute o vibe_status e a auditoria do VibeHarness (vibe_audit) para analisar a segurança, LGPD e prontidão para produção da aplicação.',
       notes,
     };
   }

@@ -39,38 +39,38 @@ export interface StatusActionData {
 export const LIFECYCLE_META: Record<ActionId, { emoji: string; title: string; why: string; command: string }> = {
   init: {
     emoji: '🟢',
-    title: 'Inicializar o harness',
-    why: 'Spec, constitution, política LGPD, regras de IA, threat model e o hook pre-commit que bloqueia segredos.',
+    title: '1. Fundação & Segurança (.vibe/)',
+    why: 'Ativa regras de segurança, LGPD, constituição e o bloqueio automático de senhas no commit.',
     command: 'npx @vibeharness/cli init',
   },
   prd: {
     emoji: '🟢',
-    title: 'Escrever o PRD',
-    why: 'A fonte da verdade do produto que sua IA lê antes de codar.',
+    title: '2. Especificação do Produto (.vibe/PRD.md)',
+    why: 'Define a visão, público-alvo e recursos do produto para a IA não alucinar requisitos.',
     command: 'npx @vibeharness/cli prd',
   },
   plan: {
     emoji: '🟢',
-    title: 'Planejar e aplicar a stack',
-    why: 'Recomendação curada do registry — instala dependências e gera as configs iniciais.',
+    title: '3. Stack & Arquitetura (.vibe/STACK.md)',
+    why: 'Recomenda as melhores tecnologias e gera as configurações seguras iniciais.',
     command: 'npx @vibeharness/cli plan --apply',
   },
   pack: {
     emoji: '🟡',
-    title: 'Empacotar contexto para a IA',
-    why: 'Contexto sanitizado (segredos redigidos) pronto para colar no seu assistente.',
+    title: '4. Contexto Otimizado para IA',
+    why: 'Empacota o projeto em formato limpo, com senhas e dados confidenciais redigidos.',
     command: 'npx @vibeharness/cli pack',
   },
   audit: {
     emoji: '🔴',
-    title: 'Rodar a auditoria de prontidão',
-    why: 'Scorecard 0–100 em segurança, LGPD, infra e a11y — com prompts de correção para IA.',
-    command: 'npx @vibeharness/cli audit --report',
+    title: '5. Auditoria de Prontidão & Segurança',
+    why: 'Raio-X 0–100 em segurança, LGPD, qualidade e a11y com relatório visual interativo em HTML.',
+    command: 'npx @vibeharness/cli audit --report --site',
   },
   doctor: {
     emoji: '🔁',
-    title: 'Checagem de manutenção',
-    why: 'Runtimes EOL, dependências desatualizadas e setup automático do Dependabot.',
+    title: '6. Manutenção & Dependências',
+    why: 'Checa versões antigas, dependências com falhas e configura atualizações automáticas.',
     command: 'npx @vibeharness/cli doctor --fix',
   },
 };
@@ -140,5 +140,7 @@ export async function statusAction(): Promise<ActionResult<StatusActionData>> {
       starters: { ...starters, files: starterFiles },
       aiPrompt,
     },
+    nextStep: next ?? undefined,
+    suggestedPrompt: aiPrompt ?? undefined,
   };
 }

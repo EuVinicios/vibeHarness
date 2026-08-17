@@ -1,8 +1,38 @@
-/**
- * Master AI rules template — injected into every AI tool config file.
- * Covers security, architecture and coding hygiene guardrails.
- */
 import { sanitizeInline } from '../ui/report.js';
+
+export const VIBE_RULES_START = '<!-- vibe-harness:start -->';
+export const VIBE_RULES_END = '<!-- vibe-harness:end -->';
+
+/**
+ * Wrap VibeHarness rules in start/end markers so they can be identified,
+ * extracted, or replaced without clobbering user-defined rules in the same file.
+ */
+export function wrapVibeHarnessBlock(content: string): string {
+  const trimmed = content.trim();
+  return `${VIBE_RULES_START}\n${trimmed}\n${VIBE_RULES_END}`;
+}
+
+/**
+ * Intelligently merge VibeHarness rules into existing rules content.
+ * 1. If existing content contains the vibe-harness block markers, replaces the block.
+ * 2. If existing content does not contain markers, appends the wrapped block, preserving all user content.
+ */
+export function mergeRulesContent(existingContent: string, newVibeRules: string): string {
+  const wrapped = wrapVibeHarnessBlock(newVibeRules);
+  const startIndex = existingContent.indexOf(VIBE_RULES_START);
+  const endIndex = existingContent.indexOf(VIBE_RULES_END);
+
+  if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
+    const before = existingContent.slice(0, startIndex).trimEnd();
+    const after = existingContent.slice(endIndex + VIBE_RULES_END.length).trimStart();
+    const parts = [before, wrapped, after].filter(Boolean);
+    return parts.join('\n\n') + '\n';
+  }
+
+  const trimmedExisting = existingContent.trim();
+  if (!trimmedExisting) return wrapped + '\n';
+  return `${trimmedExisting}\n\n${wrapped}\n`;
+}
 
 export function masterRulesTemplate(options: {
   projectName: string;

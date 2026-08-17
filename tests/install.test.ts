@@ -80,6 +80,8 @@ describe('installAction — MCP server registration', () => {
 
     const result = await installAction({ client: 'antigravity' });
     expect(result.ok).toBe(true);
+    expect(result.nextStep).toBe('status');
+    expect(result.suggestedPrompt).toBeDefined();
 
     const config = readJson(join(dir, '.agents', 'mcp_config.json'));
     const servers = config.mcpServers as Record<string, { command: string }>;
@@ -123,16 +125,18 @@ describe('installAction — user-file safety (v0.8.2)', () => {
     for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('preserves an existing user rules file unless force is set', async () => {
+  it('preserves an existing user rules file and merges VibeHarness rules unless force is set', async () => {
     const dir = makeTmp('rules-app');
     dirs.push(dir);
     writeFileSync(join(dir, 'CLAUDE.md'), '# MY OWN RULES — do not touch\n');
     process.chdir(dir);
 
-    const skip = await installAction({ client: 'claude-code' });
-    expect(skip.ok).toBe(true);
-    expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8')).toBe('# MY OWN RULES — do not touch\n');
-    expect(skip.notes?.some((n) => n.includes('CLAUDE.md') && n.includes('kept unchanged'))).toBe(true);
+    const merged = await installAction({ client: 'claude-code' });
+    expect(merged.ok).toBe(true);
+    const content = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
+    expect(content).toContain('MY OWN RULES');
+    expect(content).toContain('<!-- vibe-harness:start -->');
+    expect(merged.notes?.some((n) => n.includes('CLAUDE.md') && n.includes('updated'))).toBe(true);
 
     const forced = await installAction({ client: 'claude-code', force: true });
     expect(forced.ok).toBe(true);
