@@ -9,7 +9,8 @@ import { doctorCommand } from './doctor.js';
 /**
  * In-process lifecycle dispatcher (pretty CLI path) — used by the deprecated
  * guided `start` flow. The guided flow must never be killed by the audit
- * score gate, so audit runs with failUnder 0.
+ * gates (score or zero-criticals), so audit runs with failUnder 0 and the
+ * criticals escape hatch — the report still surfaces every finding.
  */
 export async function runLifecycleCommand(id: ActionId): Promise<void> {
   switch (id) {
@@ -26,7 +27,7 @@ export async function runLifecycleCommand(id: ActionId): Promise<void> {
       await packCommand({});
       break;
     case 'audit':
-      await auditCommand({ report: true, failUnder: '0', yes: true });
+      await auditCommand({ report: true, failUnder: '0', allowCritical: true, yes: true });
       break;
     case 'doctor':
       await doctorCommand({ fix: true });

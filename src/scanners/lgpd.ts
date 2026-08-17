@@ -240,6 +240,18 @@ const CONSENT_MARKERS = [
 const CONSENT_PROSE_RE =
   /(lgpd|gdpr)[\w\s.,-]{0,40}(banner|consentimento|consent|modal|notice|aceite|accept|opt[\s-]?in)|(banner|consentimento|consent|modal|notice|aceite|accept|opt[\s-]?in)[\w\s.,-]{0,40}(lgpd|gdpr)/i;
 
+/**
+ * Third-party trackers (v0.9). Their mere presence is legal — loading them
+ * BEFORE consent is not. Paired with the consent-marker check above.
+ */
+const TRACKER_PATTERNS: [string, RegExp][] = [
+  ['Google Analytics / Tag Manager', /\bgtag\s*\(|googletagmanager\.com\/gtm\.js|www\.google-analytics\.com\/analytics\.js|www\.googletagmanager\.com\/gtag\/js/i],
+  ['Meta Pixel', /\bfbq\s*\(|connect\.facebook\.net\/[a-z_]{2}_[A-Z]{2}\/fbevents\.js/i],
+  ['Hotjar', /static\.hotjar\.com\/|_hjSettings|\bhj\s*\(/i],
+  ['Microsoft Clarity', /clarity\.ms\/tag|clarity\s*\(\s*['"]/i],
+  ['TikTok Pixel', /analytics\.tiktok\.com\/i18n\/pixel\/events\.js|\bttq\s*\(/i],
+];
+
 const PRIVACY_ROUTES = [
   '/politica-de-privacidade',
   '/privacy',
@@ -603,6 +615,8 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
 
   /* 2. Cookie consent (comments don't count — a TODO note is not a banner) */
   let hasConsent = false;
+  let hasTracker = false;
+  let trackerName = '';
   for (const file of uiFiles) {
     let content: string;
     try {
@@ -615,7 +629,16 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
       CONSENT_PROSE_RE.test(content)
     ) {
       hasConsent = true;
-      break;
+    }
+    // v0.9: detect third-party trackers themselves — a banner without a
+    // gate that DEFERS the script is decoration. Trackers found in prod UI
+    // files without any consent mechanism get their own finding.
+    if (!hasTracker) {
+      const t = TRACKER_PATTERNS.find(([, re]) => re.test(content));
+      if (t) {
+        hasTracker = true;
+        trackerName = t[0];
+      }
     }
   }
   if (!hasConsent && uiFiles.length > 0) {
@@ -624,6 +647,14 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
       category: 'lgpd-consent',
       message: 'No cookie consent / LGPD banner detected in UI files',
       fix: 'Add a cookie consent mechanism (e.g., CookieYes, OneTrust, or a custom banner) that blocks trackers until the user accepts. This is required by LGPD Art. 8 and ANPD guidance.',
+    });
+  }
+  if (hasTracker && !hasConsent) {
+    findings.push({
+      severity: 'high',
+      category: 'lgpd-consent',
+      message: `Third-party tracker (${trackerName}) loads in production UI with no consent gate — personal data flows to a foreign processor before any opt-in`,
+      fix: 'Load the tracker ONLY after the user accepts cookies: keep the script tag out of the initial HTML (inject it in the banner accept handler) or use a consent-mode API (e.g., gtag consent_mode v2 default denied). Loading trackers pre-consent violates LGPD Art. 7/8 and the ANPD cookie guidance.',
     });
   }
 
@@ -723,6 +754,27 @@ export async function scanLGPD(): Promise<AuditSectionResult> {
       message: 'No account/data deletion endpoint detected (LGPD Art. 18 — Right to erasure)',
       fix: 'Implement a DELETE /api/user (or equivalent) endpoint that permanently removes or anonymises all personal data for the authenticated user. Log the deletion event for audit purposes.',
     });
+  } else {
+    // v0.9 cascade heuristic: a delete endpoint that only removes the main
+    // row leaves related records orphaned — the ANPD treats "deletion that
+    // leaves relational remnants" as a real erasure failure.
+    const CASCADE_MARKERS =
+      /on\s+delete\s+cascade|onDelete\s*:\s*['"]cascade|\$transaction|deleteMany|\btransaction\b/i;
+    const cascadeSeen = dsrFiles.some((f) => {
+      try {
+        return CASCADE_MARKERS.test(readFileSync(f, 'utf8'));
+      } catch {
+        return false;
+      }
+    });
+    if (!cascadeSeen) {
+      findings.push({
+        severity: 'medium',
+        category: 'lgpd-dsr',
+        message: 'Deletion endpoint found, but no cascade/transaction evidence — related records may survive the erasure request',
+        fix: 'Delete every related row in one transaction ($transaction([...])) or declare ON DELETE CASCADE / onDelete: cascade on the relations. An erasure request (Art. 18) must remove ALL personal data, not just the users row.',
+      });
+    }
   }
   if (!hasExport) {
     findings.push({

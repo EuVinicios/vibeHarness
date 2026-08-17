@@ -5,7 +5,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fg from 'fast-glob';
 import { projectRoot } from '../utils/fs.js';
-import { loadAuditIgnores } from '../utils/audit-ignore.js';
+import { loadAuditIgnoreEntries, resolveAuditIgnoreFiles, isOverlyBroadPattern } from '../utils/audit-ignore.js';
+import { verifyGuardrails } from '../utils/guardrails.js';
 import { detectPackageManager } from '../core/stage.js';
 import type { Finding, AuditSectionResult } from '../core/types.js';
 
@@ -31,13 +32,16 @@ export const SECRET_PATTERNS: [RegExp, string][] = [
   [/\bhf_[A-Za-z0-9]{30,}\b/, 'Hugging Face API token'],
   [/"private_key"\s*:\s*"-----BEGIN[^"]*PRIVATE KEY/, 'Google Cloud service account private key'],
   [/(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}/, 'GitHub token'],
-  [/\bsk-ant-[0-9A-Za-z_-]{20,}/, 'Anthropic API key'],
-  [/\bsk-proj-[0-9A-Za-z_-]{20,}/, 'OpenAI project API key'],
-  [/\bsk-[0-9A-Za-z]{40,}\b/, 'OpenAI API key'],
+  [/github_pat_[A-Za-z0-9]{22}_[A-Za-z0-9]{59}/, 'GitHub fine-grained token'],
+  [/\bsk-ant-[0-9a-zA-Z_-]{20,}/, 'Anthropic API key'],
+  [/\bsk-proj-[0-9a-zA-Z_-]{20,}/, 'OpenAI project API key'],
+  [/\bsk-[0-9a-zA-Z]{40,}\b/, 'OpenAI API key'],
   [/AIza[0-9A-Za-z_-]{35}/, 'Google API key'],
   [/xox[abprs]-[0-9A-Za-z-]{10,}/, 'Slack token'],
   [/glpat-[0-9A-Za-z_-]{20,}/, 'GitLab personal access token'],
   [/SG\.[0-9A-Za-z_-]{16,}\.[0-9A-Za-z_-]{16,}/, 'SendGrid API key'],
+  [/\bre_[A-Za-z0-9]{32,}\b/, 'Resend API key'],
+  [/\b[0-9]{8,10}:AA[A-Za-z0-9_-]{33}\b/, 'Telegram bot token'],
   [/\bSK[0-9a-f]{32}\b/, 'Twilio API key'],
   [/-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----/, 'Private key'],
   [/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, 'Hardcoded JWT'],
@@ -46,6 +50,12 @@ export const SECRET_PATTERNS: [RegExp, string][] = [
   [/secret\s*[:=]\s*["'][^"']{8,}["']/i, 'Hardcoded secret'],
   [/mongodb(\+srv)?:\/\/[^@\s]+:[^@\s]+@/, 'MongoDB URI with credentials'],
   [/postgresql:\/\/[^@\s]+:[^@\s]+@/, 'PostgreSQL URI with credentials'],
+];
+
+/** Test-mode keys: still secrets (rotation-worthy) but not live-money critical. */
+export const TEST_KEY_PATTERNS: [RegExp, string][] = [
+  [/\bsk_test_[0-9a-zA-Z]{24,}\b/, 'Stripe test secret key'],
+  [/\bpk_test_[0-9a-zA-Z]{24,}\b/, 'Stripe test publishable key'],
 ];
 
 /**
@@ -60,6 +70,7 @@ const VENDOR_LABELS = new Set([
   'Hugging Face API token',
   'Google Cloud service account private key',
   'GitHub token',
+  'GitHub fine-grained token',
   'Anthropic API key',
   'OpenAI project API key',
   'OpenAI API key',
@@ -67,16 +78,19 @@ const VENDOR_LABELS = new Set([
   'Slack token',
   'GitLab personal access token',
   'SendGrid API key',
+  'Resend API key',
+  'Telegram bot token',
   'Twilio API key',
   'Private key',
   'Hardcoded JWT',
 ]);
 
-/** Generic assignment patterns with a capture group for the literal value (triage input). */
+/** Generic assignment patterns with a capture group for the literal value (triage input).
+ * v0.9: backtick literals count too — `password = \`real-pass\`` is still a literal. */
 const GENERIC_VALUE_PATTERNS: { label: string; re: RegExp }[] = [
-  { label: 'Hardcoded password', re: /password\s*=\s*(["'])([^"']{4,})\1/gi },
-  { label: 'Hardcoded API key', re: /api[_-]?key\s*[:=]\s*(["'])([^"']{8,})\1/gi },
-  { label: 'Hardcoded secret', re: /secret\s*[:=]\s*(["'])([^"']{8,})\1/gi },
+  { label: 'Hardcoded password', re: /password\s*=\s*(["'`])([^"'`]{4,})\1/gi },
+  { label: 'Hardcoded API key', re: /api[_-]?key\s*[:=]\s*(["'`])([^"'`]{8,})\1/gi },
+  { label: 'Hardcoded secret', re: /secret\s*[:=]\s*(["'`])([^"'`]{8,})\1/gi },
 ];
 
 /** Connection-URI patterns capturing user, password and host (triage input). */
@@ -105,14 +119,46 @@ export function isEnvReference(value: string): boolean {
 const FAKE_VALUE_WORDS =
   /(test|fake|dummy|example|sample|placeholder|change[-_]?me|mock|stub|fixture|foo|bar|baz|lorem|ipsum|xxx+|segredo|senha|noop|qwerty|admin|guest|not[-_]?a[-_]?)/i;
 
+/**
+ * Mixed-class values of reasonable length behave like real credentials
+ * ("Admin@Prod2026", "S3nh4-x9T2!") — placeholder words appearing inside
+ * them must NOT downgrade the finding anymore (v0.9 audit fix).
+ */
+export function looksLikeRealCredential(value: string): boolean {
+  return value.length >= 12 && /\d/.test(value) && /[!@#$%^&*._\-+]/.test(value);
+}
+
 /** Values that are almost certainly placeholders, not real credentials. */
 export function isFakeValue(value: string): boolean {
-  if (FAKE_VALUE_WORDS.test(value)) return true;
   if (/^(.)\1+$/.test(value)) return true; // aaaaaaaa
+  if (looksLikeRealCredential(value)) return false; // mixed classes → real
+  if (FAKE_VALUE_WORDS.test(value)) return true;
   // Names its own kind and is short — real secrets rarely do ("server-secret").
   if (value.length < 32 && /(secret|password|passwd|token)/i.test(value)) return true;
   return false;
 }
+
+/** Shannon entropy (bits/char) — detects opaque high-entropy blobs without known prefixes. */
+export function shannonEntropy(s: string): number {
+  if (s.length === 0) return 0;
+  const freq = new Map<string, number>();
+  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  let h = 0;
+  for (const n of freq.values()) {
+    const p = n / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
+/**
+ * Unprefixed high-entropy assignments: `token = "Zq8fJ9x..."`. Identifiers
+ * that name hashes/digests are excluded — those are legitimately random.
+ */
+const ENTROPY_ASSIGN_PATTERN =
+  /\b((?:api[_-]?)?key|token|secret|password|passwd|credential)[a-zA-Z0-9_]*\s*[:=]\s*(["'])([A-Za-z0-9+/_-]{20,})\2/gi;
+const HASHY_IDENTIFIER = /(hash|digest|sha1|sha256|sha512|md5|checksum|signature|nonce|etag|commit)/i;
+const ENTROPY_THRESHOLD = 4.5;
 
 /** Test/spec files and fixture directories. */
 export function isTestFile(relPath: string): boolean {
@@ -163,12 +209,117 @@ const HELMET_PATTERN = /helmet/i;
 const SESSION_PATTERN = /req\.session|express-session|res\.cookie\s*\(/i;
 const CSRF_MARKER_PATTERN = /csrf|csurf|samesite/i;
 
+/* ─── Taint-lite (v0.9): lexical dataflow windows for the OWASP sinks a
+ * regex CAN see. Not AST analysis — windows look at the sink line plus a
+ * few following lines for request-derived input. Zero dependencies; when
+ * this fires, treat it as a strong lead, not a proof.                      */
+
+const SQL_UNSAFE_SINKS: { label: string; re: RegExp }[] = [
+  { label: 'Prisma $queryRawUnsafe/$executeRawUnsafe', re: /\$(queryRawUnsafe|executeRawUnsafe)\s*\(/ },
+  { label: 'Drizzle sql.raw()', re: /\bsql\.raw\s*\(/ },
+  { label: 'Python f-string SQL', re: /(?:cursor|conn|db|connection)\.execute\(\s*f['"]/ },
+];
+/** Request-derived markers inside the sink window make raw SQL injectable. */
+const TAINT_INPUT_MARKER = /(req\.|request\.|ctx\.args|args\.|params\.|query\.|body\.|inputs?\.)/;
+/** Ownership markers near the sink argue AGAINST a BOLA finding. */
+const OWNERSHIP_MARKER = /(userId|user_id|ownerId|owner_id|authorId|createdBy|user\.id|owner\b|tenantId)/i;
+const SSRF_SINK = /\b(fetch|axios\.(?:get|post|put|delete|request)|got\(|got\.|undici\.fetch|axios\()\s*/;
+const SSRF_SAFE_MARKER = /(allowlist|allowList|whitelist|allowedHosts|ALLOWED_HOSTS|isAllowedUrl|assertAllowedHost|validateUrl)/;
+const BOLA_SINK = /\.(findUnique|findFirst|findById|findOne|update|delete|deleteMany|updateMany)\b/;
+const BODY_LOG_SINK = /(?:console\.(?:log|info|debug|warn|error)|logger\.\w+)\s*\([^)\n]*(?:req\.(?:body|query|headers|cookies)|\{\s*user\b)/;
+
+/**
+ * Scans one file's content for taint-lite sinks. Returns at most one finding
+ * per sink family (first hit wins — the goal is coverage, not volume).
+ */
+export function scanTaintLite(content: string, rel: string): Finding[] {
+  const findings: Finding[] = [];
+  const lines = content.split(/\r?\n/);
+
+  // 1) SQL injection — raw SQL sinks fed by request input (OWASP A03).
+  for (const { label, re } of SQL_UNSAFE_SINKS) {
+    re.lastIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (!re.test(lines[i])) continue;
+      const window = lines.slice(i, i + 4).join('\n');
+      // Request-derived markers only: bare `${}` can interpolate internal
+      // constants (false positive); input markers are the real signal.
+      if (TAINT_INPUT_MARKER.test(window)) {
+        findings.push({
+          severity: 'critical',
+          category: 'injection',
+          message: `Possible SQL injection: ${label} receives request-derived input`,
+          file: rel,
+          fix: 'Use parameterised queries ($queryRaw with Prisma.join, sql template with sql.raw removed, or ORM query builder). Never concatenate or interpolate request input into SQL — an attacker can read or destroy the whole database.',
+        });
+        break;
+      }
+    }
+  }
+
+  // 2) SSRF — server-side fetch of a user-controlled URL (OWASP A10).
+  for (let i = 0; i < lines.length; i++) {
+    if (!SSRF_SINK.test(lines[i])) continue;
+    const window = lines.slice(Math.max(0, i - 1), i + 3).join('\n');
+    if (TAINT_INPUT_MARKER.test(window) && !SSRF_SAFE_MARKER.test(window)) {
+      findings.push({
+        severity: 'high',
+        category: 'injection',
+        message: 'Possible SSRF: fetch/axios called with a user-controlled URL',
+        file: rel,
+        fix: 'Validate the URL against an explicit allowlist of hosts (and pin the protocol to https) BEFORE fetching. User-supplied URLs let attackers reach internal services, cloud metadata endpoints (169.254.169.254) and localhost.',
+      });
+      break;
+    }
+  }
+
+  // 3) BOLA/IDOR — object lookup by request id with no ownership filter nearby.
+  for (let i = 0; i < lines.length; i++) {
+    if (!BOLA_SINK.test(lines[i]) || !/req\.params\./.test(lines[i])) continue;
+    const window = lines.slice(Math.max(0, i - 3), i + 6).join('\n');
+    if (!OWNERSHIP_MARKER.test(window)) {
+      findings.push({
+        severity: 'high',
+        category: 'injection',
+        message: 'Possible BOLA/IDOR: object fetched/updated by req.params id without an ownership check nearby',
+        file: rel,
+        fix: 'Scope the query to the authenticated owner (e.g. where: { id: req.params.id, userId: req.user.id }) or verify ownership after fetching. Unscoped lookups let any logged-in user read/modify other users\' records by changing the id.',
+      });
+      break;
+    }
+  }
+
+  // 4) Full-body/PII logging (LGPD Art. 46 + OWASP A09).
+  if (BODY_LOG_SINK.test(content)) {
+    findings.push({
+      severity: 'high',
+      category: 'privacy',
+      message: 'Request body/headers/cookies or the whole user object are logged',
+      file: rel,
+      fix: 'Log only the fields you need (ids, status codes) — never req.body, req.headers or the full user object. Logs commonly ship to third parties and become a PII leak under LGPD.',
+    });
+  }
+
+  return findings;
+}
+
 export async function scanSecrets(): Promise<AuditSectionResult> {
   const findings: Finding[] = [];
 
-  const files = await fg('**/*.{js,ts,jsx,tsx,py,env,json,yaml,yml,toml,sh,bash}', {
+  /* ── auditignore model (v0.9): exclusions suppress with accounting, never
+   * silently. Vendor-secret criticals in NON-test files survive the ignore
+   * list by design — `.vibe/auditignore` must not become an audit kill-switch.
+   * Non-vendor findings in ignored files are skipped but counted and the
+   * report always states how much of the project is excluded.               */
+  const entries = await loadAuditIgnoreEntries();
+  const ignoreSet = await resolveAuditIgnoreFiles(entries.map((e) => e.pattern));
+  const suppression = { count: 0, files: new Set<string>() };
+
+  const files = await fg('**/*.{js,ts,jsx,tsx,py,env,json,yaml,yml,toml,sh,bash,go,rb,php,java,cs}', {
     cwd: projectRoot(),
-    ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`), ...(await loadAuditIgnores())],
+    // Deliberately NOT filtered by auditignore — vendor secrets in non-test
+    // files are non-suppressible. Excluded dirs stay excluded.
+    ignore: [...EXCLUDED_DIRS.map((d) => `**/${d}/**`)],
     dot: true,
     absolute: true,
     suppressErrors: true,
@@ -194,13 +345,22 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     }
 
     const rel = file.replace(projectRoot() + '/', '');
-    const isCode = /\.(js|ts|jsx|tsx|py)$/i.test(file);
+    const isCode = /\.(js|ts|jsx|tsx|py|go|rb|php|java|cs)$/i.test(file);
     if (isCode) codeFiles.push(file);
     const inTestFile = isTestFile(rel);
 
     // Secret patterns — collect several per file (dedup by label, capped).
     const seenLabels = new Set<string>();
     const pushFinding = (f: Finding): void => {
+      // Suppression rule (v0.9): ignored files may suppress non-critical
+      // findings (with accounting) — but critical findings (vendor secrets,
+      // real generic credentials) survive the ignore list unless the file is
+      // a scanner fixture (test file). auditignore must not hide incidents.
+      if (ignoreSet.has(file) && (inTestFile || f.severity !== 'critical')) {
+        suppression.count += 1;
+        suppression.files.add(rel);
+        return;
+      }
       if (seenLabels.size >= MAX_FINDINGS_PER_FILE) return;
       if (seenLabels.has(f.message)) return;
       seenLabels.add(f.message);
@@ -217,6 +377,20 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
           message: `Potential ${label} detected`,
           file: rel,
           fix: 'Move this value to an environment variable and add it to .gitignore. Never commit credentials.',
+          triage: 'real',
+        });
+      }
+    }
+
+    // 1b) Test-mode keys — committed secrets worth rotating, not live-money critical.
+    for (const [pattern, label] of TEST_KEY_PATTERNS) {
+      if (pattern.test(content)) {
+        pushFinding({
+          severity: 'medium',
+          category: 'secrets',
+          message: `Potential ${label} committed`,
+          file: rel,
+          fix: 'Test keys still unlock test-mode APIs and often share code paths with live ones. Move the key to an environment variable and rotate it in the Stripe dashboard.',
           triage: 'real',
         });
       }
@@ -246,6 +420,17 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
             fix: 'If this is a real credential, move it to an environment variable. If it is a fixture, add the file to .vibe/auditignore.',
             triage: 'fixture',
           });
+        } else if (/\$\{/.test(value)) {
+          // Mixed template literal ("pass${suffix}") — dynamic value, cannot
+          // be judged lexically: surface as medium for human review.
+          pushFinding({
+            severity: 'medium',
+            category: 'secrets',
+            message: `${label} is assembled at runtime from a template literal`,
+            file: rel,
+            fix: 'Confirm the interpolated parts never embed real credentials in source. Prefer reading the complete value from an environment variable.',
+            triage: 'real',
+          });
         } else {
           pushFinding({
             severity: inTestFile ? 'medium' : 'critical',
@@ -259,6 +444,28 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
           });
         }
         if (seenLabels.size >= MAX_FINDINGS_PER_FILE) break;
+      }
+    }
+
+    // 2b) Unprefixed high-entropy literals — opaque blobs without a known
+    // vendor prefix (`const token = "Zq8fJ..."`). Catches base64/hex-style
+    // secrets the prefix families above cannot see.
+    ENTROPY_ASSIGN_PATTERN.lastIndex = 0;
+    let entropyMatch: RegExpExecArray | null;
+    while ((entropyMatch = ENTROPY_ASSIGN_PATTERN.exec(content)) !== null) {
+      const identifier = entropyMatch[1];
+      const value = entropyMatch[3];
+      if (HASHY_IDENTIFIER.test(identifier)) continue; // digests are random by design
+      if (isEnvReference(value) || isFakeValue(value)) continue;
+      if (shannonEntropy(value) >= ENTROPY_THRESHOLD) {
+        pushFinding({
+          severity: 'high',
+          category: 'secrets',
+          message: `High-entropy value assigned to "${identifier}" (no known vendor prefix) — possible opaque secret`,
+          file: rel,
+          fix: 'If this is a credential, move it to an environment variable. If it is generated data, rename the identifier (e.g. `digest`/`hash`) so the audit can tell them apart.',
+          triage: 'real',
+        });
       }
     }
 
@@ -328,10 +535,11 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
       continue;
     }
     const rel = file.replace(projectRoot() + '/', '');
+    const fileFindings: Finding[] = [];
 
     if (WILDCARD_CORS_PATTERN.test(content)) {
       const withCredentials = CREDENTIALS_TRUE_PATTERN.test(content);
-      findings.push({
+      fileFindings.push({
         severity: withCredentials ? 'critical' : 'high',
         category: 'secrets',
         message: withCredentials
@@ -343,7 +551,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     }
 
     if (COOKIE_SET_PATTERN.test(content) && !HTTPONLY_PATTERN.test(content)) {
-      findings.push({
+      fileFindings.push({
         severity: 'medium',
         category: 'secrets',
         message: 'Cookies set without httpOnly/secure/sameSite flags detected',
@@ -353,7 +561,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     }
 
     if (JWT_SIGN_NONE_PATTERN.test(content)) {
-      findings.push({
+      fileFindings.push({
         severity: 'critical',
         category: 'secrets',
         message: 'JWT signed with "none" algorithm — tokens can be forged',
@@ -361,7 +569,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
         fix: 'Never allow `alg: none`. Pin the algorithm explicitly (e.g., HS256 with a strong secret or RS256) on both sign and verify.',
       });
     } else if (JWT_SECRET_LITERAL_PATTERN.test(content)) {
-      findings.push({
+      fileFindings.push({
         severity: 'high',
         category: 'secrets',
         message: 'JWT secret hardcoded in source',
@@ -371,7 +579,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     }
 
     if (JWT_DECODE_PATTERN.test(content) && !JWT_VERIFY_PATTERN.test(content)) {
-      findings.push({
+      fileFindings.push({
         severity: 'high',
         category: 'secrets',
         message: 'JWT decoded with jwt.decode() without signature verification (jwt.verify)',
@@ -383,7 +591,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     // Test fixtures routinely instantiate express/session without helmet/CSRF
     // and that says nothing about the real app — triage them like other checks.
     if (!isTestFile(rel) && EXPRESS_PATTERN.test(content) && !HELMET_PATTERN.test(content)) {
-      findings.push({
+      fileFindings.push({
         severity: 'medium',
         category: 'secrets',
         message: 'Express app without security-headers middleware (helmet)',
@@ -393,7 +601,7 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
     }
 
     if (!isTestFile(rel) && SESSION_PATTERN.test(content) && !CSRF_MARKER_PATTERN.test(content)) {
-      findings.push({
+      fileFindings.push({
         severity: 'medium',
         category: 'secrets',
         message: 'Cookie/session-based auth without CSRF protection markers detected',
@@ -401,7 +609,53 @@ export async function scanSecrets(): Promise<AuditSectionResult> {
         fix: 'Use SameSite cookies plus a CSRF token (or double-submit cookie) on all state-changing routes. Without it, third-party sites can forge authenticated requests.',
       });
     }
+
+    // Taint-lite sinks (v0.9) — skipped for test fixtures like the rest.
+    if (!isTestFile(rel)) {
+      fileFindings.push(...scanTaintLite(content, rel));
+    }
+
+    // Commit or suppress the file's heuristic findings (same v0.9 rule:
+    // ignored test files suppress everything; ignored non-test files
+    // suppress everything except criticals).
+    if (fileFindings.length > 0 && ignoreSet.has(file)) {
+      const survivors = isTestFile(rel) ? [] : fileFindings.filter((f) => f.severity === 'critical');
+      suppression.count += fileFindings.length - survivors.length;
+      if (survivors.length < fileFindings.length) suppression.files.add(rel);
+      findings.push(...survivors);
+    } else {
+      findings.push(...fileFindings);
+    }
   }
+
+  /* ── auditignore hygiene — exclusions must stay narrow and documented ───── */
+  for (const entry of entries) {
+    if (isOverlyBroadPattern(entry.pattern)) {
+      findings.push({
+        severity: 'high',
+        category: 'auditignore',
+        message: `.vibe/auditignore entry "${entry.pattern}" is overly broad — it suppresses findings for a whole tree`,
+        fix: 'Narrow the pattern to the specific files with known false positives and document each entry inline: `path # reason`. An exclusion this wide is an audit kill-switch.',
+      });
+    }
+  }
+  const undocumentedEntries = entries.filter((e) => !e.reason).length;
+  if (entries.length > 0) {
+    findings.push({
+      severity: 'info',
+      category: 'auditignore',
+      message:
+        `.vibe/auditignore active: ${entries.length} pattern(s) covering ${ignoreSet.size} file(s); ` +
+        `${suppression.count} finding(s) suppressed this run` +
+        (undocumentedEntries > 0 ? `; ${undocumentedEntries} entry(ies) missing an inline reason` : '') +
+        '. Suppressed is not safe — review exclusions regularly.',
+      fix: 'Keep every exclusion narrow, temporary and documented inline (`path # reason`).',
+    });
+  }
+
+  /* ── guardrails tamper detection (v0.9) — constitution, .gitignore .env
+   * entry, pre-commit hook and core.hooksPath vs the init baseline.       */
+  findings.push(...(await verifyGuardrails()));
 
   const maxScore = 30;
   const deductions = findings.reduce(

@@ -92,7 +92,7 @@ jobs:
           npm audit --audit-level=high
 
   vibe-audit:
-    name: 🛡️ VibeHarness audit (score ≥ 70)
+    name: 🛡️ VibeHarness audit (score ≥ 70, zero criticals)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -105,6 +105,9 @@ jobs:
         # --yes: npx must not prompt in CI (a prompt stalls or fails the job).
         # The package is version-pinned: a compromised npm \`latest\` must not
         # get code execution in this pipeline.
+        # Zero-criticals gate is the default — a critical finding fails this
+        # job even with score ≥ 70. \`--allow-critical\` is deliberately NOT
+        # set: exceptions are manual edits, auditable via git history.
         run: npx --yes ${cliSpec} audit --fail-under 70
 `;
 }

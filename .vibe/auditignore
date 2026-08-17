@@ -2,30 +2,32 @@
 # scanners AND the pre-commit secret hook (v0.5.1+).
 # Gitignore-style globs, one per line. Use sparingly and justify every entry:
 # an ignored file is a blind spot for the secret/LGPD scanners.
+# v0.9+: prefer the inline reason format (`path  # reason`) — the audit
+# reports entries without one, and overly broad patterns are flagged.
 #
 # --- VibeHarness self-scan exclusions -------------------------------------
 # Test files contain INTENTIONAL fake-secret fixtures (PEM blocks, AWS keys,
 # CORS/JWT snippets, PII strings, MD5 calls) used to verify the scanners.
-tests/packager.test.ts
-tests/security.test.ts
-tests/lgpd.test.ts
+tests/packager.test.ts  # intentional fake-secret fixtures for packager redaction tests
+tests/security.test.ts  # intentional fake-secret fixtures for the secret scanner tests
+tests/lgpd.test.ts  # intentional fake-PII/CPF fixtures for the LGPD scanner tests
 # The LGPD scanner's own pattern definitions match themselves when read
 # as file content (md5/INSERT-password regex sources).
-src/scanners/lgpd.ts
+src/scanners/lgpd.ts  # scanner's own regex sources self-match (md5/INSERT-password patterns)
 # The infra scanner's fix text embeds a literal route example
 # (app.get("/healthz")) that trips the web-surface detection.
-src/scanners/infra.ts
+src/scanners/infra.ts  # scanner's own fix-text embeds a literal /healthz route example
 # CLI output lines that mention "secret(s)" trip the PII-in-logs heuristic
 # (they print UI text, not user data).
-src/commands/doctor.ts
+src/commands/doctor.ts  # CLI output text mentions "secret(s)" — UI copy, not user data
 # The pre-commit hook snippet embeds the secret-detection patterns themselves
 # (moved from src/commands/init.ts to the headless action in v0.7.0).
-src/actions/init.ts
+src/actions/init.ts  # pre-commit hook snippet embeds the detection patterns themselves
 # The security scanner's pattern definitions contain the secret literals
 # themselves; the packager documents the prefixes it redacts.
-src/scanners/security.ts
-src/packager/index.ts
+src/scanners/security.ts  # scanner's own SECRET_PATTERNS definitions (regex sources)
+src/packager/index.ts  # packager documents the vendor prefixes it redacts
 # Recipes: documents Stripe key prefixes in .env.example hints.
-src/core/recipes.ts
+src/core/recipes.ts  # documents Stripe key prefixes in .env.example hints
 # Docs that quote the patterns being detected (kept out of the hook's grep).
-CHANGELOG.md
+CHANGELOG.md  # release notes quote the detected vendor prefixes

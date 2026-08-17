@@ -12,6 +12,12 @@ export interface AuditActionOptions {
   report?: boolean;
   site?: boolean;
   failUnder?: number;
+  /**
+   * Explicit escape hatch for the zero-criticals gate. When false (default),
+   * any critical finding fails the audit even if the score is above the
+   * threshold. Kept as a flag so CI exceptions are auditable via git history.
+   */
+  allowCritical?: boolean;
 }
 
 export interface AuditActionData {
@@ -19,6 +25,9 @@ export interface AuditActionData {
   percentage: number;
   threshold: number;
   passed: boolean;
+  /** True when the audit failed solely because of the zero-criticals gate. */
+  criticalBlocked: boolean;
+  allowCritical: boolean;
   criticalFindings: number;
   highFindings: number;
   fixPrompt: string;
@@ -56,7 +65,9 @@ export async function auditAction(opts: AuditActionOptions = {}): Promise<Action
     report,
     percentage,
     threshold,
-    passed: percentage >= threshold,
+    passed: percentage >= threshold && (opts.allowCritical === true || counts.critical === 0),
+    criticalBlocked: opts.allowCritical !== true && counts.critical > 0,
+    allowCritical: opts.allowCritical === true,
     criticalFindings: counts.critical,
     highFindings: counts.high,
     fixPrompt,
@@ -83,12 +94,18 @@ export async function auditAction(opts: AuditActionOptions = {}): Promise<Action
     summary:
       `Score ${report.totalScore}/${report.maxScore} (${percentage}%) — grade ${report.grade}` +
       (counts.critical + counts.high > 0 ? `, ${counts.critical} critical / ${counts.high} high findings` : '') +
-      (data.passed ? '' : ` — below threshold ${threshold}`),
+      (data.criticalBlocked ? ` — blocked by ${counts.critical} critical finding(s) (zero-criticals gate)` : '') +
+      (!data.passed && !data.criticalBlocked ? ` — below threshold ${threshold}` : ''),
     data,
     outputs,
     nextStep: data.passed ? 'doctor' : 'audit',
-    notes: fixTargets.length > 0
-      ? ['Fix prompt included — apply it with your AI, then run the audit again']
-      : [],
+    notes: [
+      ...(fixTargets.length > 0
+        ? ['Fix prompt included — apply it with your AI, then run the audit again']
+        : []),
+      ...(data.criticalBlocked
+        ? ['Critical findings fail the audit regardless of score. Fix them, or use --allow-critical as an explicit, auditable exception.']
+        : []),
+    ],
   };
 }

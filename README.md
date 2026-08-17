@@ -257,9 +257,9 @@ Runs a comprehensive local audit and generates a **Commercial Readiness Scorecar
 
 | Section | Max | What it checks |
 |---------|-----|----------------|
-| 🛡️ Security & Secrets | 30 | 19 secret patterns (AWS, Stripe, GitHub, Google, Slack, OpenAI, Anthropic, GitLab, SendGrid, Twilio, JWT, PEM…), wildcard CORS + credentials, cookie flags, JWT `alg:none`/hardcoded secret/`decode` without `verify`, missing helmet, CSRF |
+| 🛡️ Security & Secrets | 30 | 27 secret patterns (AWS, Stripe live/test, GitHub classic + fine-grained, Google, Slack, OpenAI, Anthropic, GitLab, SendGrid, Twilio, Telegram, Resend, JWT, PEM…), Shannon entropy for unprefixed blobs, backtick literals, wildcard CORS + credentials, cookie flags, JWT `alg:none`/hardcoded secret/`decode` without `verify`, missing helmet, CSRF, **taint-lite** OWASP sinks (SQLi `$queryRawUnsafe`/`sql.raw`, SSRF fetch, BOLA, `console.log(req.body)`), guardrails anti-tamper |
 | 📦 Dependency CVEs | 10 | `npm audit` high/critical CVEs |
-| 🇧🇷 LGPD Brasil Compliance | 20 | PII in logs, DSR endpoints, consent banner, RLS, password hashing |
+| 🇧🇷 LGPD Brasil Compliance | 20 | PII in logs, DSR endpoints (+ cascade heuristic), consent banner, **trackers without consent gating** (GA/Meta Pixel/Hotjar), RLS, password hashing |
 | 🧹 Dead Code & Hygiene | 10 | God objects, console.logs, knip suggestion |
 | 🗄️ Database Integrity | 10 | Versioned migrations vs `db push` |
 | 🏗️ Infra & Resilience | 10 | Health endpoints, rate limiting, error handlers |
@@ -271,13 +271,23 @@ vibe-harness audit --report           # + AUDIT_REPORT.md with AI fix prompts
 vibe-harness audit --fail-under 80    # Exit code 1 if score < 80
 ```
 
+**Zero-criticals gate (v0.9):** the audit fails on **any** critical finding
+even when the score is above the threshold — a committed vendor secret no
+longer passes as "80/100". The explicit, auditable escape hatch is
+`--allow-critical` (the generated CI never includes it).
+
 **False-positive control:** create a `.vibe/auditignore` file (gitignore-style
 globs) to exclude known-benign files from the pattern scanners **and the
 pre-commit secret hook** — e.g. test fixtures that intentionally contain fake
-secrets, or source files that define the detection patterns themselves. The
-LGPD scanner also skips web-only obligations (consent banner, privacy pages,
-DSR endpoints) when no web surface (UI components or HTTP routes) is detected —
-CLI/library projects are not flagged for missing cookie banners.
+secrets, or source files that define the detection patterns themselves. Since
+v0.9 exclusions suppress **with accounting** (the report states how many
+findings were suppressed), prefer the inline reason format
+(`path  # reason`), critical findings survive the ignore list outside test
+files, and overly broad patterns (`**/*`, `src/**`) are flagged as high
+instead of honoured. The LGPD scanner also skips web-only obligations
+(consent banner, privacy pages, DSR endpoints) when no web surface (UI
+components or HTTP routes) is detected — CLI/library projects are not flagged
+for missing cookie banners.
 
 ### AUDIT_REPORT.md
 Each finding includes an **AI Fix Prompt** you can paste directly into Cursor, Claude, or Copilot to fix the issue. A Batch AI Fix Prompt at the end covers all critical/high findings in one shot.

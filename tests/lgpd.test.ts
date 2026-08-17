@@ -295,7 +295,7 @@ describe('scanLGPD — scanner accuracy regressions (v0.8.2)', () => {
       'utf8'
     );
     const result = await scanLGPD();
-    expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+    expect(result.findings.filter((f) => f.category === 'lgpd-dsr' && !f.message.includes('cascade'))).toHaveLength(0);
   });
 
   it('does NOT accept gtag (analytics) as cookie consent', async () => {
@@ -332,7 +332,7 @@ describe('scanLGPD — DSR beyond HTTP (v0.8)', () => {
       'utf8'
     );
     const result = await scanLGPD();
-    expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+    expect(result.findings.filter((f) => f.category === 'lgpd-dsr' && !f.message.includes('cascade'))).toHaveLength(0);
   });
 
   it('recognises SQL functions named delete_own_account / export_user_data', async () => {
@@ -344,7 +344,7 @@ describe('scanLGPD — DSR beyond HTTP (v0.8)', () => {
       'utf8'
     );
     const result = await scanLGPD();
-    expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+    expect(result.findings.filter((f) => f.category === 'lgpd-dsr' && !f.message.includes('cascade'))).toHaveLength(0);
   });
 });
 
@@ -424,7 +424,7 @@ describe('scanLGPD — v0.8.3 regressions', () => {
       'utf8'
     );
     const result = await scanLGPD();
-    expect(result.findings.filter((f) => f.category === 'lgpd-dsr')).toHaveLength(0);
+    expect(result.findings.filter((f) => f.category === 'lgpd-dsr' && !f.message.includes('cascade'))).toHaveLength(0);
   });
 
   it('block/HTML comments no longer satisfy or hide heuristics', async () => {
@@ -491,5 +491,65 @@ describe('scanLGPD — v0.8.4 regressions (self-harness dogfooding)', () => {
     );
     const result = await scanLGPD();
     expect(result.findings.some((f) => f.category === 'lgpd-scope')).toBe(false);
+  });
+});
+
+describe('scanLGPD — trackers & DSR cascade (v0.9)', () => {
+  it('flags a tracker (gtag) loaded with no consent mechanism as high', async () => {
+    await writeFile(
+      join(tmpDir, 'layout.tsx'),
+      `import Script from 'next/script';\nexport default function Layout() {\n  return (<><Script src="https://www.googletagmanager.com/gtag/js?id=G-X1" />{children}</>);\n}\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    const f = result.findings.find((x) => x.category === 'lgpd-consent' && x.severity === 'high');
+    expect(f?.message).toContain('tracker');
+    expect(f?.message).toContain('Google Analytics');
+  });
+
+  it('tracker + consent marker = no tracker finding', async () => {
+    await writeFile(
+      join(tmpDir, 'layout.tsx'),
+      `<script src="https://www.googletagmanager.com/gtag/js?id=G-X1"></script>\n<div class="cookie-consent banner">Aceito</div>\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    expect(result.findings.find((x) => x.category === 'lgpd-consent' && x.severity === 'high')).toBeUndefined();
+  });
+
+  it('detects Meta Pixel and Hotjar trackers', async () => {
+    await writeFile(
+      join(tmpDir, 'pixel.tsx'),
+      `fbq('init', '123');\nconst h = _hjSettings;\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    const f = result.findings.find((x) => x.category === 'lgpd-consent' && x.severity === 'high');
+    expect(f?.message).toContain('Meta Pixel');
+  });
+
+  it('deletion endpoint without cascade/transaction evidence gets a medium finding', async () => {
+    await addPersistence();
+    await writeFile(
+      join(tmpDir, 'routes.ts'),
+      `router.delete('/api/user', async (req, res) => { await repo.deleteUser(req.user.id); res.json({ ok: true }); });\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    const f = result.findings.find((x) => x.category === 'lgpd-dsr' && x.severity === 'medium');
+    expect(f?.message).toContain('cascade');
+  });
+
+  it('deletion with $transaction or ON DELETE CASCADE is clean', async () => {
+    await addPersistence();
+    await writeFile(
+      join(tmpDir, 'routes.ts'),
+      `router.delete('/api/user', async (req, res) => { await prisma.$transaction([prisma.user.delete({ where: { id: req.user.id } }), prisma.profile.deleteMany({ where: { userId: req.user.id } })]); res.json({ ok: true }); });\n`,
+      'utf8'
+    );
+    const result = await scanLGPD();
+    // Export missing is a separate (pre-existing) medium — this test targets cascade only.
+    expect(result.findings.find((x) => x.category === 'lgpd-dsr' && x.severity === 'medium' && x.message.includes('cascade'))).toBeUndefined();
+    expect(result.findings.find((x) => x.category === 'lgpd-dsr' && x.severity === 'high')).toBeUndefined();
   });
 });

@@ -38,7 +38,14 @@ npx @vibeharness/cli init --json   # saída máquina-legível (agentes/CI)
     - `.github/workflows/security.yml` — gitleaks + CVE audit + gate de score no CI
       (score ≥ 70 e zero findings críticos para o PR passar)
     - `.git/hooks/pre-commit` — bloqueia commit com chave de API
-      (usa gitleaks quando instalado; senão, padrões embutidos)
+      (usa gitleaks quando instalado; senão, padrões embutidos em dois níveis:
+      famílias vendor bloqueiam sempre — até em arquivos do auditignore fora
+      de testes — e credenciais genéricas longas bloqueiam nos demais)
+    - `.vibe/guardrails.json` — baseline anti-tamper (v0.9): o `audit` compara
+      o estado atual de `CONSTITUTION.md`, `.env` no `.gitignore` e do hook
+      com este baseline e sinaliza drift (constitution deletada = critical,
+      `.env` removido do gitignore = critical, hook removido ou
+      `core.hooksPath` redirecionado = high)
     - Nada de `.vibe/auditignore` por padrão — ele só existe se **você** criar,
       para excluir falsos positivos da auditoria. Veja [Segurança & LGPD](../seguranca.md).
 

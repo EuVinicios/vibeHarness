@@ -11,13 +11,19 @@ interface AuditOptions {
   site?: boolean;
   yes?: boolean;
   failUnder: string;
+  allowCritical?: boolean;
   json?: boolean;
 }
 
 export async function auditCommand(opts: AuditOptions): Promise<void> {
   if (opts.json) {
     const result = await withStderrConsole(() =>
-      auditAction({ report: opts.report, site: opts.site, failUnder: parseInt(opts.failUnder, 10) || 0 })
+      auditAction({
+        report: opts.report,
+        site: opts.site,
+        failUnder: parseInt(opts.failUnder, 10) || 0,
+        allowCritical: opts.allowCritical,
+      })
     );
     printJson(result);
     if (!result.ok) process.exitCode = 1;
@@ -37,6 +43,7 @@ export async function auditCommand(opts: AuditOptions): Promise<void> {
     report: opts.report,
     site: wantSite,
     failUnder: parseInt(opts.failUnder, 10) || 0,
+    allowCritical: opts.allowCritical,
   });
 
   printReport(result.data.report);
@@ -51,11 +58,24 @@ export async function auditCommand(opts: AuditOptions): Promise<void> {
   }
 
   if (!result.data.passed) {
-    console.log(
-      chalk.red.bold(
-        `  ✖  Score ${result.data.percentage}% está abaixo do limite de ${result.data.threshold}%.\n`
-      )
-    );
+    if (result.data.criticalBlocked) {
+      console.log(
+        chalk.red.bold(
+          `  ✖  ${result.data.criticalFindings} finding(s) crítico(s) — o gate exige ZERO críticos, independentemente do score.\n`
+        )
+      );
+      console.log(
+        chalk.dim(
+          '     Corrija os críticos antes do deploy. Exceção explícita e auditável: --allow-critical.\n'
+        )
+      );
+    } else {
+      console.log(
+        chalk.red.bold(
+          `  ✖  Score ${result.data.percentage}% está abaixo do limite de ${result.data.threshold}%.\n`
+        )
+      );
+    }
     console.log(
       renderNextStepBox({
         currentActionSummary: `Auditoria realizada com score ${result.data.percentage}% (necessário: ≥ ${result.data.threshold}%)`,
