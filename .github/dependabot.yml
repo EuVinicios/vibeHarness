@@ -1,20 +1,24 @@
 # Dependency updates for the VibeHarness repository itself.
-# Generated during the v0.4.0 security hardening — practice what the CLI preaches.
+# Configured for monthly cadence with full grouping to optimize GitHub Actions minutes.
 version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+    open-pull-requests-limit: 3
     groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
+      npm-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 2
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+

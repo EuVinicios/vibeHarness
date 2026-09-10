@@ -8,8 +8,26 @@ name: Security
 
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
   push:
     branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -21,6 +39,7 @@ jobs:
   secrets:
     name: 🙈 Secret scanning (gitleaks)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -34,6 +53,7 @@ jobs:
   dependencies:
     name: 📦 Dependency CVE audit
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

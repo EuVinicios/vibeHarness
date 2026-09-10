@@ -1,0 +1,33 @@
+name: Auto Merge
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: 🤖 Enable Auto-Merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: |
+      github.actor == 'dependabot[bot]' ||
+      github.actor == 'github-actions[bot]' ||
+      startsWith(github.head_ref, 'dependabot/') ||
+      startsWith(github.head_ref, 'registry-sync/')
+    steps:
+      - name: Approve and enable auto-merge
+        run: |
+          # Try to approve PR (if not self-authored)
+          gh pr review --approve "$PR_URL" || echo "Approval skipped or already approved"
+          # Enable auto-merge so it merges into main once required checks pass
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
