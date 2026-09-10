@@ -3,11 +3,29 @@ name: CodeQL
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
   schedule:
     # Weekly — Sundays at 04:00 UTC
     - cron: '0 4 * * 0'
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -17,7 +35,7 @@ jobs:
   analyze:
     name: 📊 CodeQL Analyze (javascript-typescript)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     continue-on-error: true
 
     steps:

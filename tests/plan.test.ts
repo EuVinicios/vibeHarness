@@ -91,8 +91,12 @@ describe('registry catalog', () => {
     // Known expected advisory noise, documented in the entries' notes:
     // - react-testing-library: stable-main branch (>90d push)
     // - agent-os: content-complete methodology repo (slow cadence)
+    // - awesome-cursorrules: curated reference collection (static repo)
     const unexpected = violations.filter(
-      (v) => !v.includes('react-testing-library') && !v.includes('agent-os')
+      (v) =>
+        !v.includes('react-testing-library') &&
+        !v.includes('agent-os') &&
+        !v.includes('awesome-cursorrules')
     );
     expect(unexpected).toEqual([]);
   });

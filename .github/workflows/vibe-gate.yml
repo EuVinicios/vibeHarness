@@ -3,8 +3,26 @@ name: VibeHarness Gate
 on:
   pull_request:
     branches: [main, master, develop]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
   push:
     branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
+
+concurrency:
+  group: vibe-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -14,6 +32,7 @@ jobs:
   vibe-audit:
     name: 🛡️ VibeHarness Production Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 8
 
     steps:
       - name: Checkout

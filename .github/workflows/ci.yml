@@ -3,8 +3,26 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - 'mkdocs.yml'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/workflows/pages.yml'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -13,6 +31,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         # actions/checkout@v7.0.1
