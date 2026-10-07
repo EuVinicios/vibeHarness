@@ -9,5 +9,6 @@
       ],
       "enabled": true
     }
-  }
+  },
+  "$schema": "https://opencode.ai/config"
 }
